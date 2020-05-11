@@ -29,7 +29,7 @@ if CYTHON:
     extras['ext_modules'] = [Extension("vcf.cparse", ["vcf/cparse.pyx"])]
 
 setup(
-    name='dcic_pyVCF',
+    name='dcicpyvcf',
     packages=['vcf', 'vcf.test'],
     scripts=['scripts/vcf_melt', 'scripts/vcf_filter.py',
              'scripts/vcf_sample_filter.py'],
