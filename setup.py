@@ -29,12 +29,12 @@ if CYTHON:
     extras['ext_modules'] = [Extension("vcf.cparse", ["vcf/cparse.pyx"])]
 
 setup(
-    name='PyVCF',
+    name='dcic_pyVCF',
     packages=['vcf', 'vcf.test'],
     scripts=['scripts/vcf_melt', 'scripts/vcf_filter.py',
              'scripts/vcf_sample_filter.py'],
-    author='James Casbon and @jdoughertyii',
-    author_email='casbon@gmail.com',
+    author='Will Ronchetti',
+    author_email='william_ronchetti@hms.harvard.edu',
     description='Variant Call Format (VCF) parser for Python',
     long_description=DOC,
     test_suite='vcf.test.test_vcf.suite',
@@ -49,7 +49,7 @@ setup(
             'snp-only = vcf.filters:SnpOnly',
         ]
     },
-    url='https://github.com/jamescasbon/PyVCF',
+    url='https://github.com/4dn-dcic/PyVCF',
     version=VERSION,
     classifiers = [
         'Development Status :: 4 - Beta',
