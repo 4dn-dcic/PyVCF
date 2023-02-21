@@ -60,9 +60,6 @@ setup(
         'Operating System :: OS Independent',
         'Programming Language :: Cython',
         'Programming Language :: Python',
-        'Programming Language :: Python :: 2',
-        'Programming Language :: Python :: 2.7',
-        'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
@@ -71,7 +68,6 @@ setup(
         'Topic :: Scientific/Engineering :: Bio-Informatics',
       ],
     keywords='bioinformatics',
-    use_2to3=True,
     include_package_data=True,
     package_data = {
         '': ['*.vcf', '*.gz', '*.tbi'],

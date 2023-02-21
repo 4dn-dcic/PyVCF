@@ -7,7 +7,7 @@ import sys
 import warnings
 
 
-from parser import Reader, Writer
+from .parser import Reader, Writer
 
 
 class SampleFilter(object):
@@ -81,13 +81,13 @@ class SampleFilter(object):
                 # is int, check if it's an idx
                 if item < len(self.samples):
                     return item
-        filters = set(filter(lambda x: x is not None, map(filt2idx, filt_s)))
+        filters = set([x for x in map(filt2idx, filt_s) if x is not None])
         if len(filters) < len(filt_s):
             # TODO print the filters that were ignored
             warnings.warn("Invalid filters, ignoring", RuntimeWarning)
 
         if self.invert:
-            filters = set(xrange(len(self.samples))).difference(filters)
+            filters = set(range(len(self.samples))).difference(filters)
 
         # `sample_filter` setter updates `samples`
         self.parser.sample_filter = filters

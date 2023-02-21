@@ -6,9 +6,8 @@ except AttributeError:
     import unittest2 as unittest
 import doctest
 import os
-import commands
-import cPickle
-from StringIO import StringIO
+import pickle
+from io import StringIO
 import subprocess
 import sys
 
@@ -137,7 +136,7 @@ class TestVcfSpecs(unittest.TestCase):
         """Test VCF inputs with ##contig inputs containing only IDs. produced by bcftools 1.2+
         """
         reader = vcf.Reader(fh("contig_idonly.vcf"))
-        for cid, contig in reader.contigs.items():
+        for cid, contig in list(reader.contigs.items()):
             if cid == "1":
                 assert contig.length is None
             elif cid == "2":
@@ -390,25 +389,24 @@ class TestInfoTypeCharacter(unittest.TestCase):
         reader2 = vcf.Reader(out)
 
         for l, r in zip(records, reader2):
-            self.assertEquals(l.INFO, r.INFO)
+            self.assertEqual(l.INFO, r.INFO)
 
 
 class TestBadInfoFields(unittest.TestCase):
     def test_parse(self):
         reader = vcf.Reader(fh('bad-info-character.vcf'))
         record = next(reader)
-        self.assertEquals(record.INFO['DOT_1'], None)
-        self.assertEquals(record.INFO['DOT_3'], [None, None, None])
-        self.assertEquals(record.INFO['DOT_N'], [None])
-        self.assertEquals(record.INFO['EMPTY_1'], None)
+        self.assertEqual(record.INFO['DOT_1'], None)
+        self.assertEqual(record.INFO['DOT_3'], [None, None, None])
+        self.assertEqual(record.INFO['DOT_N'], [None])
+        self.assertEqual(record.INFO['EMPTY_1'], None)
         # Perhaps EMPTY_3 should yield [None, None, None] but this is really a
         # cornercase of unspecified behaviour.
-        self.assertEquals(record.INFO['EMPTY_3'], [None])
-        self.assertEquals(record.INFO['EMPTY_N'], [None])
-        self.assertEquals(record.INFO['NOTEMPTY_1'], 1)
-        self.assertEquals(record.INFO['NOTEMPTY_3'], [1, 2, 3])
-        self.assertEquals(record.INFO['NOTEMPTY_N'], [1])
-        pass
+        self.assertEqual(record.INFO['EMPTY_3'], [None])
+        self.assertEqual(record.INFO['EMPTY_N'], [None])
+        self.assertEqual(record.INFO['NOTEMPTY_1'], 1)
+        self.assertEqual(record.INFO['NOTEMPTY_3'], [1, 2, 3])
+        self.assertEqual(record.INFO['NOTEMPTY_N'], [1])
 
 
 class TestParseMetaLine(unittest.TestCase):
@@ -440,7 +438,7 @@ class TestParseMetaLine(unittest.TestCase):
         self.assertEqual(f['Options'], '"< 4 and > 3"')
 
         for l, r in zip(records, reader2):
-            self.assertEquals(l.INFO, r.INFO)
+            self.assertEqual(l.INFO, r.INFO)
 
 
 class TestGatkOutputWriter(unittest.TestCase):
@@ -463,13 +461,13 @@ class TestGatkOutputWriter(unittest.TestCase):
         print (out_str)
         reader2 = vcf.Reader(out)
 
-        self.assertEquals(reader.samples, reader2.samples)
-        self.assertEquals(reader.formats, reader2.formats)
-        self.assertEquals(reader.infos, reader2.infos)
-        self.assertEquals(reader.contigs, reader2.contigs)
+        self.assertEqual(reader.samples, reader2.samples)
+        self.assertEqual(reader.formats, reader2.formats)
+        self.assertEqual(reader.infos, reader2.infos)
+        self.assertEqual(reader.contigs, reader2.contigs)
 
         for l, r in zip(records, reader2):
-            self.assertEquals(l.samples, r.samples)
+            self.assertEqual(l.samples, r.samples)
 
             # test for call data equality, since equality on the sample calls
             # may not always mean their data are all equal
@@ -493,12 +491,12 @@ class TestBcfToolsOutputWriter(unittest.TestCase):
         print (out.getvalue())
         reader2 = vcf.Reader(out)
 
-        self.assertEquals(reader.samples, reader2.samples)
-        self.assertEquals(reader.formats, reader2.formats)
-        self.assertEquals(reader.infos, reader2.infos)
+        self.assertEqual(reader.samples, reader2.samples)
+        self.assertEqual(reader.formats, reader2.formats)
+        self.assertEqual(reader.infos, reader2.infos)
 
         for l, r in zip(records, reader2):
-            self.assertEquals(l.samples, r.samples)
+            self.assertEqual(l.samples, r.samples)
 
             # test for call data equality, since equality on the sample calls
             # may not always mean their data are all equal
@@ -522,7 +520,7 @@ class TestWriterDictionaryMeta(unittest.TestCase):
         out_str = out.getvalue()
         for line in out_str.split("\n"):
             if line.startswith("##PEDIGREE"):
-                self.assertEquals(line, '##PEDIGREE=<Derived="Tumor",Original="Germline">')
+                self.assertEqual(line, '##PEDIGREE=<Derived="Tumor",Original="Germline">')
             if line.startswith("##SAMPLE"):
                 assert line.startswith('##SAMPLE=<'), "Found dictionary in meta line: {0}".format(line)
 
@@ -955,8 +953,7 @@ class TestRecord(unittest.TestCase):
     def test_pickle(self):
         reader = vcf.Reader(fh('example-4.0.vcf'))
         for var in reader:
-            self.assertEqual(cPickle.loads(cPickle.dumps(var)), var)
-
+            self.assertEqual(pickle.loads(pickle.dumps(var)), var)
 
     def assert_has_expected_coordinates(
             self,
@@ -1498,7 +1495,7 @@ class TestFilter(unittest.TestCase):
     @unittest.skip("test currently broken")
     def testApplyFilter(self):
         # FIXME: broken with distribute
-        s, out = commands.getstatusoutput('python scripts/vcf_filter.py --site-quality 30 test/example-4.0.vcf sq')
+        s, out = subprocess.getstatusoutput('python scripts/vcf_filter.py --site-quality 30 test/example-4.0.vcf sq')
         #print(out)
         self.assertEqual(s, 0)
         buf = StringIO()
@@ -1528,7 +1525,7 @@ class TestFilter(unittest.TestCase):
     @unittest.skip("test currently broken")
     def testApplyMultipleFilters(self):
         # FIXME: broken with distribute
-        s, out = commands.getstatusoutput('python scripts/vcf_filter.py --site-quality 30 '
+        s, out = subprocess.getstatusoutput('python scripts/vcf_filter.py --site-quality 30 '
         '--genotype-quality 50 test/example-4.0.vcf sq mgq')
         self.assertEqual(s, 0)
         #print(out)
@@ -1599,7 +1596,7 @@ class TestUtils(unittest.TestCase):
                 assert recs[1] is not None
 
         # test files with many chromosomes, set 'vcf_record_sort_key' to define chromosome order
-        chr_order = map(str, range(1, 30)) + ['X', 'Y', 'M']
+        chr_order = list(map(str, list(range(1, 30)))) + ['X', 'Y', 'M']
         get_key = lambda r: (chr_order.index(r.CHROM.replace('chr','')), r.POS)
         reader1 = vcf.Reader(fh('issue-140-file1.vcf'))
         reader2 = vcf.Reader(fh('issue-140-file2.vcf'))

@@ -2,13 +2,11 @@ from abc import ABCMeta, abstractmethod
 import collections
 import sys
 import re
+from collections import Counter
 
-try:
-    from collections import Counter
-except ImportError:
-    from counter import Counter
 
 allele_delimiter = re.compile(r'''[|/]''') # to split a genotype into alleles
+
 
 class _Call(object):
     """ A genotype call, a cell entry in a VCF file"""
@@ -362,7 +360,7 @@ class _Record(object):
         If there are i alleles with frequency p_i, H=1-sum_i(p_i^2)
         """
         allele_freqs = [1-sum(self.aaf)] + self.aaf
-        return 1 - sum(map(lambda x: x**2, allele_freqs))
+        return 1 - sum([x ** 2 for x in allele_freqs])
 
     def get_hom_refs(self):
         """ The list of hom ref genotypes"""
@@ -558,9 +556,8 @@ class _Record(object):
             return True
 
 
-class _AltRecord(object):
+class _AltRecord(object, metaclass=ABCMeta):
     '''An alternative allele record: either replacement string, SV placeholder, or breakend'''
-    __metaclass__ = ABCMeta
 
     def __init__(self, type, **kwargs):
         super(_AltRecord, self).__init__(**kwargs)
@@ -596,7 +593,7 @@ class _Substitution(_AltRecord):
         return len(self.sequence)
 
     def __eq__(self, other):
-        if isinstance(other, basestring):
+        if isinstance(other, str):
             return self.sequence == other
         elif not isinstance(other, self.__class__):
             return False

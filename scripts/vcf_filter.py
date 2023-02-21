@@ -108,7 +108,7 @@ def main():
     while len(args.rest):
         filter_name = args.rest.pop(0)
         if filter_name not in filters:
-            sys.exit("%s is not a known filter (%s)" % (filter_name, str(filters.keys())))
+            sys.exit("%s is not a known filter (%s)" % (filter_name, str(list(filters.keys()))))
 
         # create a parser only for arguments of current filter
         filt_parser = create_filt_parser(filter_name)

@@ -19,7 +19,7 @@ if sys.argv[1] == 'profile':
 elif sys.argv[1] == 'time':
     n = 1
     t = timeit.timeit('parse_1kg()',  "from __main__ import parse_1kg", number=n)
-    print t/n
+    print((t/n))
 
 elif sys.argv[1] == 'stat':
     import statprof
@@ -30,4 +30,4 @@ elif sys.argv[1] == 'stat':
         statprof.stop()
         statprof.display()
 else:
-    print 'prof.py profile/time'
+    print('prof.py profile/time')
