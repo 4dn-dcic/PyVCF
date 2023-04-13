@@ -1,26 +1,31 @@
+import glob
+import io
+
 from setuptools import setup
 from distutils.extension import Extension
-import sys
 
 try:
-    from Cython.Distutils import build_ext
+    from Cython.Distutils import build_ext  # noQA - Might be this won't exist, no warning from PyCharm required
     CYTHON = True
-except:
+except Exception:
     CYTHON = False
 
-DEPENDENCIES = ['setuptools']
+DEPENDENCIES = []
+for filename in glob.glob("requirements/*requirements*.txt"):
+    with io.open(filename) as f:
+        DEPENDENCIES += f.read().splitlines()
 
 # get the version without an import
 VERSION = "Undefined"
 DOC = ""
 inside_doc = False
-for line in open('vcf/__init__.py'):
+for line in io.open('vcf/__init__.py'):
     if "'''" in line:
         inside_doc = not inside_doc
     if inside_doc:
         DOC += line.replace("'''", "")
 
-    if (line.startswith('VERSION')):
+    if line.startswith('VERSION'):
         exec(line.strip())
 
 extras = {}
@@ -39,7 +44,7 @@ setup(
     long_description=DOC,
     test_suite='vcf.test.test_vcf.suite',
     install_requires=DEPENDENCIES,
-    entry_points = {
+    entry_points={
         'vcf.filters': [
             'site_quality = vcf.filters:SiteQuality',
             'vgq = vcf.filters:VariantGenotypeQuality',
@@ -51,7 +56,7 @@ setup(
     },
     url='https://github.com/4dn-dcic/PyVCF',
     version=VERSION,
-    classifiers = [
+    classifiers=[
         'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',
         'Intended Audience :: Science/Research',
@@ -60,6 +65,8 @@ setup(
         'Operating System :: OS Independent',
         'Programming Language :: Cython',
         'Programming Language :: Python',
+        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: Implementation :: CPython',
         'Programming Language :: Python :: Implementation :: PyPy',
@@ -67,8 +74,9 @@ setup(
       ],
     keywords='bioinformatics',
     include_package_data=True,
-    package_data = {
+    package_data={
         '': ['*.vcf', '*.gz', '*.tbi'],
         },
+    python_requires='>=3.7,<3.9',
     **extras
 )
