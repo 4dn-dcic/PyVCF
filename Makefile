@@ -14,6 +14,9 @@ build:
 build-after-configure:
 	source .venv/bin/activate && pip install -r requirements/common-requirements.txt -r requirements/pypy-requirements.txt -r requirements/dev-requirements.txt
 
+build-for-ga:
+	make build
+
 rebuild:
 	make reconfigure && make build-after-configure
 
@@ -28,6 +31,18 @@ test:
 
 test-tox:
 	source .venv/bin/activate && tox
+
+test-for-ga:
+	make pytest
+
+tag-and-push:  # tags the branch and pushes it
+	@scripts/tag-and-push
+
+publish:
+	scripts/publish
+
+publish-for-ga:
+	scripts/publish --noconfirm
 
 help:
 	@make info
