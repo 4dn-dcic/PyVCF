@@ -22,6 +22,11 @@ while true; do
     fi
 done
 
+if [ ! -e "pyproject.toml" ]; then
+    echo "There is no pyroject.toml, so you cannot publish using this method."
+    exit 1
+fi
+
 if [ -z "$PYPI_USER" ]; then
     echo '$PYPI_USER is not set.'
     exit 1
