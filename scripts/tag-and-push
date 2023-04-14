@@ -6,12 +6,17 @@ if [ "$dirty" = "dirty" ]; then
     exit 1
 fi
 
-if [ ! -e "pyproject.toml" ]; then
-    echo "There is no pyproject.toml"
+if [ -e "pyproject.toml" ]; then
+    version_file="pyproject.toml"
+elif [ -e "version.py" ]; then
+    # If the file with the version declaration is elsewhere, use a symbolic link from version.py to that file
+    version_file="version.py"
+else
+    echo "There is no pyproject.toml or version.py"
     exit 1
 fi
 
-version=`grep '^version = ' pyproject.toml | sed -E "s/^version = ['\"]([^'\"]+)['\"].*/\1/g"`
+version=`grep -i '^version *= *' ${version_file} | sed -E "s/^version *= *['\"]([0-9][^ #'\"]+)['\"].*/\1/gI"`
 
 if [ -z "${version}" ]; then
     echo "pyproject.toml has no 'version = \"...\"' line."
