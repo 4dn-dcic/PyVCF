@@ -136,7 +136,7 @@ class TestVcfSpecs(unittest.TestCase):
         """Test VCF inputs with ##contig inputs containing only IDs. produced by bcftools 1.2+
         """
         reader = vcf.Reader(fh("contig_idonly.vcf"))
-        for cid, contig in list(reader.contigs.items()):
+        for cid, contig in reader.contigs.items():
             if cid == "1":
                 assert contig.length is None
             elif cid == "2":
@@ -1596,7 +1596,7 @@ class TestUtils(unittest.TestCase):
                 assert recs[1] is not None
 
         # test files with many chromosomes, set 'vcf_record_sort_key' to define chromosome order
-        chr_order = list(map(str, list(range(1, 30)))) + ['X', 'Y', 'M']
+        chr_order = [str(x) for x in range(1, 30)] + ['X', 'Y', 'M']
         get_key = lambda r: (chr_order.index(r.CHROM.replace('chr','')), r.POS)
         reader1 = vcf.Reader(fh('issue-140-file1.vcf'))
         reader2 = vcf.Reader(fh('issue-140-file2.vcf'))

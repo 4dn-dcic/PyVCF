@@ -360,7 +360,7 @@ class _Record(object):
         If there are i alleles with frequency p_i, H=1-sum_i(p_i^2)
         """
         allele_freqs = [1-sum(self.aaf)] + self.aaf
-        return 1 - sum([x ** 2 for x in allele_freqs])
+        return 1 - sum(x ** 2 for x in allele_freqs)
 
     def get_hom_refs(self):
         """ The list of hom ref genotypes"""

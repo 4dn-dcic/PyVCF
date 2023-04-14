@@ -4,42 +4,44 @@ import argparse
 import pkg_resources
 
 import vcf
-from vcf.parser import _Filter
+from vcf.parser import (
+    _Filter,  # noQA - testing protected member
+)
+
 
 def create_filt_parser(name):
     parser = argparse.ArgumentParser(description='Parser for %s' % name,
-            add_help=False
-            )
+                                     add_help=False)
     parser.add_argument('rest', nargs=argparse.REMAINDER, help=argparse.SUPPRESS)
 
     return parser
+
 
 def create_core_parser():
     # we have to use custom formatted usage, because of the
     # multi-stage argument parsing (otherwise the filter arguments
     # are grouped together with the other optionals)
     parser = argparse.ArgumentParser(description='Filter a VCF file',
-            add_help=False,
-            formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-            usage="""%(prog)s [-h] [--no-short-circuit] [--no-filtered]
+                                     add_help=False,
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                     usage="""%(prog)s [-h] [--no-short-circuit] [--no-filtered]
               [--output OUTPUT] [--local-script LOCAL_SCRIPT]
               input filter [filter_args] [filter [filter_args]] ...
-            """
-            )
+            """)
     parser.add_argument('-h', '--help', action='store_true',
-            help='Show this help message and exit.')
+                        help='Show this help message and exit.')
     parser.add_argument('input', metavar='input', type=argparse.FileType('rb'), nargs='?', default=None,
-            help='File to process (use - for STDIN)')
+                        help='File to process (use - for STDIN)')
 #    parser.add_argument('filters', metavar='filter', type=str, nargs='*', default=None,
-#            help='Filters to use')
+#                        help='Filters to use')
     parser.add_argument('--no-short-circuit', action='store_true',
-            help='Do not stop filter processing on a site if any filter is triggered')
+                        help='Do not stop filter processing on a site if any filter is triggered')
     parser.add_argument('--output', action='store', default=sys.stdout,
-            help='Filename to output [STDOUT]')
+                        help='Filename to output [STDOUT]')
     parser.add_argument('--no-filtered', action='store_true',
-            help='Output only sites passing the filters')
+                        help='Output only sites passing the filters')
     parser.add_argument('--local-script', action='store', default=None,
-            help='Python file in current working directory with the filter classes')
+                        help='Python file in current working directory with the filter classes')
     parser.add_argument('rest', nargs=argparse.REMAINDER, help=argparse.SUPPRESS)
 
     return parser
@@ -70,6 +72,7 @@ def create_core_parser():
     # TODO: parallelize
     # TODO: prevent plugins raising an exception from crashing the script
 
+
 def main():
     # dynamically build the list of available filters
     filters = {}
@@ -92,7 +95,7 @@ def main():
         addfilt(filt)
 
     # add all classes from local script, if present
-    if args.local_script != None:
+    if args.local_script is not None:
         import inspect
         import os
         sys.path.insert(0, os.getcwd())
@@ -108,21 +111,21 @@ def main():
     while len(args.rest):
         filter_name = args.rest.pop(0)
         if filter_name not in filters:
-            sys.exit("%s is not a known filter (%s)" % (filter_name, str(list(filters.keys()))))
+            sys.exit(f"{filter_name} is not a known filter. Options are: {', '.join(filters.keys())}")
 
         # create a parser only for arguments of current filter
         filt_parser = create_filt_parser(filter_name)
         filters[filter_name].customize_parser(filt_parser)
         (known_filt_args, unknown_filt_args) = filt_parser.parse_known_args(args.rest)
         if len(unknown_filt_args):
-            sys.exit("%s has no arguments like %s" % (filter_name, unknown_filt_args))
+            sys.exit(f"{filter_name} has no arguments like: {', '.join(unknown_filt_args)}")
 
         used_filters.append((filter_name, known_filt_args))
         args.rest = known_filt_args.rest
 
     # print help using the 'help' parser, so it includes
     # all possible filters and arguments
-    if args.help or len(used_filters) == 0 or args.input == None:
+    if args.help or len(used_filters) == 0 or args.input is None:
         parser.print_help()
         parser.exit()
 
@@ -149,7 +152,8 @@ def main():
         output_record = True
         for filt in chain:
             result = filt(record)
-            if result == None: continue
+            if result is None:
+                continue
 
             # save some work by skipping the rest of the code
             if drop_filtered:
@@ -157,12 +161,16 @@ def main():
                 break
 
             record.add_filter(filt.filter_name())
-            if short_circuit: break
+            if short_circuit:
+                break
 
         if output_record:
             # use PASS only if other filter names appear in the FILTER column
-            #FIXME: is this good idea?
-            if record.FILTER is None and not drop_filtered: record.FILTER = 'PASS'
+            # FIXME: is this good idea?
+            if record.FILTER is None and not drop_filtered:
+                record.FILTER = 'PASS'
             output.write_record(record)
 
-if __name__ == '__main__': main()
+
+if __name__ == '__main__':
+    main()

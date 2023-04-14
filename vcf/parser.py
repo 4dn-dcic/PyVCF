@@ -19,8 +19,13 @@ try:
 except ImportError:
     cparse = None
 
-from .model import _Call, _Record, make_calldata_tuple
-from .model import _Substitution, _Breakend, _SingleBreakend, _SV
+from .model import (
+    _Call, _Record,  # noQA - protected members need testing
+    make_calldata_tuple,
+)
+from .model import (
+    _Substitution, _Breakend, _SingleBreakend, _SV,  # noQA - protected members need testing
+)
 
 
 # Metadata parsers/constants
@@ -272,7 +277,7 @@ class Reader(object):
             self._separator = '\t| +'
 
         self._row_pattern = re.compile(self._separator)
-        self._alt_pattern = re.compile('[\[\]]')
+        self._alt_pattern = re.compile(r'[\[\]]')
 
         self.reader = (line.strip() for line in self._reader if line.strip())
 
@@ -349,7 +354,7 @@ class Reader(object):
         fields = self._row_pattern.split(line[1:])
         self._column_headers = fields[:9]
         self.samples = fields[9:]
-        self._sample_indexes = dict([(x,i) for (i,x) in enumerate(self.samples)])
+        self._sample_indexes = {x: i for i, x in enumerate(self.samples)}
 
     def _map(self, func, iterable, bad=['.', '']):
         '''``map``, but make bad values None.'''
@@ -530,7 +535,7 @@ class Reader(object):
                 withinMainAssembly = True
             pos = remoteCoords[1]
             orientation = (str[0] == '[' or str[0] == ']')
-            remoteOrientation = (re.search('\[', str) is not None)
+            remoteOrientation = (re.search(r'\[', str) is not None)
             if orientation:
                 connectingSequence = items[2]
             else:
@@ -638,7 +643,7 @@ class Writer(object):
     """VCF Writer. On Windows Python 2, open stream with 'wb'."""
 
     # Reverse keys and values in header field count dictionary
-    counts = dict((v, k) for k, v in list(field_counts.items()))
+    counts = {v: k for k, v in field_counts.items()}
 
     def __init__(self, stream, template, lineterminator="\n"):
         self.writer = csv.writer(stream, delimiter="\t",
@@ -656,25 +661,25 @@ class Writer(object):
         two = '##{key}=<ID={0},Description="{1}">\n'
         four = '##{key}=<ID={0},Number={num},Type={2},Description="{3}">\n'
         _num = self._fix_field_count
-        for (key, vals) in list(template.metadata.items()):
+        for (key, vals) in template.metadata.items():
             if key in SINGULAR_METADATA:
                 vals = [vals]
             for val in vals:
                 if isinstance(val, dict):
                     values = ','.join('{0}={1}'.format(key, value)
-                                      for key, value in list(val.items()))
+                                      for key, value in val.items())
                     stream.write('##{0}=<{1}>\n'.format(key, values))
                 else:
                     stream.write('##{0}={1}\n'.format(key, val))
-        for line in list(template.infos.values()):
+        for line in template.infos.values():
             stream.write(four.format(key="INFO", *line, num=_num(line.num)))
-        for line in list(template.formats.values()):
+        for line in template.formats.values():
             stream.write(four.format(key="FORMAT", *line, num=_num(line.num)))
-        for line in list(template.filters.values()):
+        for line in template.filters.values():
             stream.write(two.format(key="FILTER", *line))
-        for line in list(template.alts.values()):
+        for line in template.alts.values():
             stream.write(two.format(key="ALT", *line))
-        for line in list(template.contigs.values()):
+        for line in template.contigs.values():
             if line.length:
                 stream.write('##contig=<ID={0},length={1}>\n'.format(*line))
             else:
