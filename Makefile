@@ -2,8 +2,21 @@ SHELL=/bin/bash
 
 .PHONY: build
 
+clean:
+	@# Specific files
+	rm -rf vcf/cparse.c nosetests.xml coverage.xml
+	@# General classes of files
+	find vcf -name "*.so" -delete
+	@# Directories
+	rm -rf *.egg-info/ .eggs/ .coverage/ .cache/ .hypothesis/ develop-eggs/
+	rm -rf build/ .pytest_cache/ .tox/ .venv/ __pycache__/ build/
+
+clear-poetry-cache:  # clear poetry/pypi cache. for user to do explicitly, never automatic
+	poetry cache clear pypi --all
+
 configure:
 	pip install --upgrade pip
+	pip install poetry==1.4.2
 
 build:
 	make configure && make build-after-configure
@@ -17,17 +30,11 @@ build-for-ga:
 lint:
 	flake8 vcf && flake8 scripts
 
-pytest:
+test:
 	pytest -vv -W '' vcf/
 
-test:
-	python setup.py test
-
-test-tox:
-	tox
-
 test-for-ga:
-	make pytest
+	make test
 
 tag-and-push:  # tags the branch and pushes it
 	@scripts/tag-and-push
@@ -46,5 +53,3 @@ info:
 	   $(info - Use 'make build' to set up .venv as a virtual environment using pyenv)
 	   $(info - Use 'make lint' to check style with flake8)
 	   $(info - Use 'make test' to run tests using 'setup.py test')
-	   $(info - Use 'make pytest' to run tests using 'pytest')
-	   $(info - Use 'make test-tox' to run tests using 'tox')

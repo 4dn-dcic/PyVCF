@@ -595,6 +595,19 @@ class Reader(object):
 
         return record
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        self._reader.close()
+
+    def close(self):
+        """Close the writer"""
+        try:
+            self._reader.close()
+        except AttributeError:
+            pass
+
     def fetch(self, chrom, start=None, end=None):
         """ Fetches records from a tabix-indexed VCF file and returns an
             iterable of ``_Record`` instances

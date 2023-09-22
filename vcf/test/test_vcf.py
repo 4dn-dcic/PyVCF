@@ -1,99 +1,108 @@
-from __future__ import print_function
+import gzip
 import unittest
-try:
-    unittest.skip
-except AttributeError:
-    import unittest2 as unittest
 import doctest
 import os
 import pickle
-from io import StringIO
+import platform
+# We used to conditionally load pysam, but now it's unconditional. That probably means we can get rid of some
+# conditional test skips later. -kmp 22-Sep-2023
+#
+# try:
+#     import pysam
+# except ImportError:
+#     pysam = None
+# import pysam
 import subprocess
-import sys
-
-try:
-    import pysam
-except ImportError:
-    pysam = None
-
 import vcf
+
+
+from io import StringIO
 from vcf import model, utils
 
-IS_PYTHON2 = sys.version_info[0] == 2
-IS_NOT_PYPY = 'PyPy' not in sys.version
+IS_PYPY = platform.python_implementation() == 'PyPy'
 
 suite = doctest.DocTestSuite(vcf)
 
 
+def ignored(x):
+    return x
+
+
+def full_path(fname):
+    return os.path.join(os.path.dirname(__file__), fname)
+
+
 def fh(fname, mode='rt'):
-    return open(os.path.join(os.path.dirname(__file__), fname), mode)
+    return open(full_path(fname), mode)
 
 
 class TestVcfSpecs(unittest.TestCase):
 
     def test_vcf_4_0(self):
-        reader = vcf.Reader(fh('example-4.0.vcf'))
-        self.assertEqual(reader.metadata['fileformat'], 'VCFv4.0')
+        with fh('example-4.0.vcf') as fp:
+            reader = vcf.Reader(fp)
+            self.assertEqual(reader.metadata['fileformat'], 'VCFv4.0')
 
-        # test we can walk the file at least
-        for r in reader:
+            # test we can walk the file at least
+            for r in reader:
 
-            if r.POS == 1230237:
-                assert r.is_monomorphic
-            else:
-                assert not r.is_monomorphic
+                if r.POS == 1230237:
+                    assert r.is_monomorphic
+                else:
+                    assert not r.is_monomorphic
 
-            if 'AF' in r.INFO:
-                self.assertEqual(type(r.INFO['AF']),  type([]))
+                if 'AF' in r.INFO:
+                    self.assertEqual(type(r.INFO['AF']),  type([]))
 
-            for c in r:
-                assert c
+                for c in r:
+                    assert c
 
-                # issue 19, in the example ref the GQ is length 1
-                if c.called:
-                    self.assertEqual(type(c.data.GQ),  type(1))
-                    if 'HQ' in c.data and c.data.HQ is not None:
-                        self.assertEqual(type(c.data.HQ),  type([]))
-
-
+                    # issue 19, in the example ref the GQ is length 1
+                    if c.called:
+                        self.assertEqual(type(c.data.GQ),  type(1))
+                        if 'HQ' in c.data and c.data.HQ is not None:
+                            self.assertEqual(type(c.data.HQ),  type([]))
 
     def test_vcf_4_1(self):
-        reader = vcf.Reader(fh('example-4.1.vcf'))
-        self.assertEqual(reader.metadata['fileformat'],  'VCFv4.1')
+        with fh('example-4.1.vcf') as fp:
+            reader = vcf.Reader(fp)
+            self.assertEqual(reader.metadata['fileformat'],  'VCFv4.1')
 
-        # contigs were added in vcf4.1
-        self.assertEqual(reader.contigs['20'].length, 62435964)
+            # contigs were added in vcf4.1
+            self.assertEqual(reader.contigs['20'].length, 62435964)
 
-        # test we can walk the file at least
-        for r in reader:
-            for c in r:
-                assert c
+            # test we can walk the file at least
+            for r in reader:
+                for c in r:
+                    assert c
 
     def test_vcf_4_1_sv(self):
-        reader = vcf.Reader(fh('example-4.1-sv.vcf'))
+        with fh('example-4.1-sv.vcf') as fp:
+            reader = vcf.Reader(fp)
 
-        assert 'SVLEN' in reader.infos
-        assert 'fileDate' in reader.metadata
-        assert 'DEL' in reader.alts
+            assert 'SVLEN' in reader.infos
+            assert 'fileDate' in reader.metadata
+            assert 'DEL' in reader.alts
 
-        # test we can walk the file at least
-        for r in reader:
-            print(r)
-            for a in r.ALT:
-                print(a)
-            for c in r:
-                print(c)
-                assert c
+            # test we can walk the file at least
+            for r in reader:
+                print(r)
+                for a in r.ALT:
+                    print(a)
+                for c in r:
+                    print(c)
+                    assert c
 
     def test_vcf_4_1_bnd(self):
-        reader = vcf.Reader(fh('example-4.1-bnd.vcf'))
+        with fh('example-4.1-bnd.vcf') as fp:
+            reader = vcf.Reader(fp)
 
-        # test we can walk the file at least
-        for r in reader:
-            print(r)
-            for a in r.ALT:
-                print(a)
-            if r.ID == "bnd1":
+            # test we can walk the file at least
+            for r in reader:
+                print(r)
+                for a in r.ALT:
+                    print(a)
+                if r.ID == "bnd1":
                     self.assertEqual(len(r.ALT), 1)
                     self.assertEqual(r.ALT[0].type, "BND")
                     self.assertEqual(r.ALT[0].chr, "2")
@@ -101,7 +110,7 @@ class TestVcfSpecs(unittest.TestCase):
                     self.assertEqual(r.ALT[0].orientation, False)
                     self.assertEqual(r.ALT[0].remoteOrientation, True)
                     self.assertEqual(r.ALT[0].connectingSequence, "T")
-            if r.ID == "bnd4":
+                if r.ID == "bnd4":
                     self.assertEqual(len(r.ALT), 1)
                     self.assertEqual(r.ALT[0].type, "BND")
                     self.assertEqual(r.ALT[0].chr, "1")
@@ -109,56 +118,62 @@ class TestVcfSpecs(unittest.TestCase):
                     self.assertEqual(r.ALT[0].orientation, True)
                     self.assertEqual(r.ALT[0].remoteOrientation, False)
                     self.assertEqual(r.ALT[0].connectingSequence, "G")
-            for c in r:
-                print(c)
-                assert c
+                for c in r:
+                    print(c)
+                    assert c
 
     def test_vcf_4_2(self):
-        reader = vcf.Reader(fh('example-4.2.vcf'))
-        self.assertEqual(reader.metadata['fileformat'],  'VCFv4.2')
+        with fh('example-4.2.vcf') as fp:
+            reader = vcf.Reader(fp)
+            self.assertEqual(reader.metadata['fileformat'],  'VCFv4.2')
 
-        # If INFO contains no Source and Version keys, they should be None.
-        self.assertEqual(reader.infos['DP'].source, None)
-        self.assertEqual(reader.infos['DP'].version, None)
+            # If INFO contains no Source and Version keys, they should be None.
+            self.assertEqual(reader.infos['DP'].source, None)
+            self.assertEqual(reader.infos['DP'].version, None)
 
-        # According to spec, INFO Version key is required to be double quoted,
-        # but at least SAMtools 1.0 does not quote it. So we want to be
-        # forgiving here.
-        self.assertEqual(reader.infos['VDB'].source, None)
-        self.assertEqual(reader.infos['VDB'].version, '3')
+            # According to spec, INFO Version key is required to be doublequoted,
+            # but at least SAMtools 1.0 does not quote it. So we want to be
+            # forgiving here.
+            self.assertEqual(reader.infos['VDB'].source, None)
+            self.assertEqual(reader.infos['VDB'].version, '3')
 
-        # test we can walk the file at least
-        for r in reader:
-            for c in r:
-                assert c
+            # test we can walk the file at least
+            for r in reader:
+                for c in r:
+                    assert c
 
     def test_contig_idonly(self):
         """Test VCF inputs with ##contig inputs containing only IDs. produced by bcftools 1.2+
         """
-        reader = vcf.Reader(fh("contig_idonly.vcf"))
-        for cid, contig in reader.contigs.items():
-            if cid == "1":
-                assert contig.length is None
-            elif cid == "2":
-                assert contig.length == 2000
-            elif cid == "3":
-                assert contig.length == 3000
+        with fh("contig_idonly.vcf") as fp:
+            reader = vcf.Reader(fp)
+            for cid, contig in reader.contigs.items():
+                if cid == "1":
+                    assert contig.length is None
+                elif cid == "2":
+                    assert contig.length == 2000
+                elif cid == "3":
+                    assert contig.length == 3000
+
 
 class TestGatkOutput(unittest.TestCase):
 
     filename = 'gatk.vcf'
 
-    samples = ['BLANK', 'NA12878', 'NA12891', 'NA12892',
-            'NA19238', 'NA19239', 'NA19240']
+    samples = ['BLANK', 'NA12878', 'NA12891', 'NA12892', 'NA19238', 'NA19239', 'NA19240']
     formats = ['AD', 'DP', 'GQ', 'GT', 'PL']
     infos = ['AC', 'AF', 'AN', 'BaseQRankSum', 'DB', 'DP', 'DS',
-            'Dels', 'FS', 'HRun', 'HaplotypeScore', 'InbreedingCoeff',
-            'MQ', 'MQ0', 'MQRankSum', 'QD', 'ReadPosRankSum']
+             'Dels', 'FS', 'HRun', 'HaplotypeScore', 'InbreedingCoeff',
+             'MQ', 'MQ0', 'MQRankSum', 'QD', 'ReadPosRankSum']
 
     n_calls = 37
 
     def setUp(self):
-        self.reader = vcf.Reader(fh(self.filename))
+        self.fp = fh(self.filename)
+        self.reader = vcf.Reader(self.fp)
+
+    def tearDown(self):
+        self.fp.close()
 
     def testSamples(self):
         self.assertEqual(self.reader.samples, self.samples)
@@ -169,14 +184,12 @@ class TestGatkOutput(unittest.TestCase):
     def testInfos(self):
         self.assertEqual(set(self.reader.infos), set(self.infos))
 
-
     def testCalls(self):
         n = 0
 
         for site in self.reader:
             n += 1
             self.assertEqual(len(site.samples), len(self.samples))
-
 
             # check sample name lookup
             for s in self.samples:
@@ -193,131 +206,147 @@ class TestFreebayesOutput(TestGatkOutput):
     filename = 'freebayes.vcf'
     formats = ['AO', 'DP', 'GL', 'GLE', 'GQ', 'GT', 'QA', 'QR', 'RO']
     infos = ['AB', 'ABP', 'AC', 'AF', 'AN', 'AO', 'BVAR', 'CIGAR',
-            'DB', 'DP', 'DPRA', 'EPP', 'EPPR', 'HWE', 'LEN', 'MEANALT',
-            'NUMALT', 'RPP', 'MQMR', 'ODDS', 'MQM', 'PAIREDR', 'PAIRED',
-            'SAP', 'XRM', 'RO', 'REPEAT', 'XRI', 'XAS', 'XAI', 'SRP',
-            'XAM', 'XRS', 'RPPR', 'NS', 'RUN', 'CpG', 'TYPE']
+             'DB', 'DP', 'DPRA', 'EPP', 'EPPR', 'HWE', 'LEN', 'MEANALT',
+             'NUMALT', 'RPP', 'MQMR', 'ODDS', 'MQM', 'PAIREDR', 'PAIRED',
+             'SAP', 'XRM', 'RO', 'REPEAT', 'XRI', 'XAS', 'XAI', 'SRP',
+             'XAM', 'XRS', 'RPPR', 'NS', 'RUN', 'CpG', 'TYPE']
     n_calls = 104
 
-
     def testParse(self):
-        reader = vcf.Reader(fh('freebayes.vcf'))
-        print(reader.samples)
-        self.assertEqual(len(reader.samples), 7)
-        n = 0
-        for r in reader:
-            n+=1
-            for x in r:
-                assert x
-        self.assertEqual(n, self.n_calls)
+        with fh('freebayes.vcf') as fp:
+            reader = vcf.Reader(fp)
+            print(reader.samples)
+            self.assertEqual(len(reader.samples), 7)
+            n = 0
+            for r in reader:
+                n += 1
+                for x in r:
+                    assert x
+            self.assertEqual(n, self.n_calls)
+
 
 class TestSamtoolsOutput(unittest.TestCase):
 
     def testParse(self):
-        reader = vcf.Reader(fh('samtools.vcf'))
+        with fh('samtools.vcf') as fp:
+            reader = vcf.Reader(fp)
 
-        self.assertEqual(len(reader.samples), 1)
-        self.assertEqual(sum(1 for _ in reader), 11)
+            self.assertEqual(len(reader.samples), 1)
+            self.assertEqual(sum(1 for _ in reader), 11)
 
 
 class TestBcfToolsOutput(unittest.TestCase):
+
     def testParse(self):
-        reader = vcf.Reader(fh('bcftools.vcf'))
-        self.assertEqual(len(reader.samples), 1)
-        for r in reader:
-            for s in r.samples:
-                s.phased
+        with fh('bcftools.vcf') as fp:
+            reader = vcf.Reader(fp)
+            self.assertEqual(len(reader.samples), 1)
+            for r in reader:
+                for s in r.samples:
+                    assert hasattr(s, 'phased'), f"{s} is missing .phased"
+
 
 class TestIssue214(unittest.TestCase):
     """ See https://github.com/jamescasbon/PyVCF/issues/214 """
 
     def test_issue_214_is_snp(self):
-        reader=vcf.Reader(fh('issue-214.vcf'))
-        r=next(reader)
-        self.assertTrue(r.is_snp)
+        with fh('issue-214.vcf') as fp:
+            reader = vcf.Reader(fp)
+            r = next(reader)
+            self.assertTrue(r.is_snp)
 
     def test_issue_214_var_type(self):
-        reader=vcf.Reader(fh('issue-214.vcf'))
-        r=next(reader)
-        self.assertEqual(r.var_type,'snp')
+        with fh('issue-214.vcf') as fp:
+            reader = vcf.Reader(fp)
+            r = next(reader)
+            self.assertEqual(r.var_type, 'snp')
 
     # Can the ref even be a spanning deletion?
     # Note, this does not trigger issue 214, but I've added it here for completeness
     def test_issue_214_ref_is_del_is_snp(self):
-        reader=vcf.Reader(fh('issue-214.vcf'))
-        next(reader)
-        r=next(reader)
-        self.assertTrue(r.is_snp)
+        with fh('issue-214.vcf') as fp:
+            reader = vcf.Reader(fp)
+            next(reader)
+            r = next(reader)
+            self.assertTrue(r.is_snp)
 
     # Can the ref even be a spanning deletion?
     # Note, this does not trigger issue 214, but I've added it here for completeness
     def test_issue_214_ref_is_del_var_type(self):
-        reader=vcf.Reader(fh('issue-214.vcf'))
-        next(reader)
-        r=next(reader)
-        self.assertEqual(r.var_type,'snp')
+        with fh('issue-214.vcf') as fp:
+            reader = vcf.Reader(fp)
+            next(reader)
+            r = next(reader)
+            self.assertEqual(r.var_type, 'snp')
+
 
 class Test1kg(unittest.TestCase):
 
     def testParse(self):
-        reader = vcf.Reader(fh('1kg.vcf.gz', 'rb'))
+        with fh('1kg.vcf.gz', 'rb') as fp:
+            reader = vcf.Reader(fp)
 
-        assert 'FORMAT' in reader._column_headers
+            assert 'FORMAT' in reader._column_headers
 
-        self.assertEqual(len(reader.samples), 629)
-        for _ in reader:
-            pass
+            self.assertEqual(len(reader.samples), 629)
+            for _ in reader:
+                pass
 
     def test_issue_49(self):
         """docstring for test_issue_49"""
-        reader = vcf.Reader(fh('issue_49.vcf', 'r'))
+        with fh('issue_49.vcf', 'r') as fp:
+            reader = vcf.Reader(fp)
 
-        self.assertEqual(len(reader.samples), 0)
-        for _ in reader:
-            pass
+            self.assertEqual(len(reader.samples), 0)
+            for _ in reader:
+                pass
 
 
 class Test1kgSites(unittest.TestCase):
 
     def test_reader(self):
         """The samples attribute should be the empty list."""
-        reader = vcf.Reader(fh('1kg.sites.vcf', 'r'))
+        with fh('1kg.sites.vcf', 'r') as fp:
+            reader = vcf.Reader(fp)
 
-        assert 'FORMAT' not in reader._column_headers
+            assert 'FORMAT' not in reader._column_headers
 
-        self.assertEqual(reader.samples, [])
-        for record in reader:
-            self.assertEqual(record.samples, [])
+            self.assertEqual(reader.samples, [])
+            for record in reader:
+                self.assertEqual(record.samples, [])
 
     def test_writer(self):
         """FORMAT should not be written if not present in the template and no
         extra tab character should be printed if there are no FORMAT fields."""
-        reader = vcf.Reader(fh('1kg.sites.vcf', 'r'))
-        out = StringIO()
-        writer = vcf.Writer(out, reader, lineterminator='\n')
+        with fh('1kg.sites.vcf', 'r') as fp:
+            reader = vcf.Reader(fp)
+            out = StringIO()
+            writer = vcf.Writer(out, reader, lineterminator='\n')
 
-        for record in reader:
-            writer.write_record(record)
-        out.seek(0)
-        out_str = out.getvalue()
-        for line in out_str.split('\n'):
-            if line.startswith('##'):
-                continue
-            if line.startswith('#CHROM'):
-                assert 'FORMAT' not in line
-            assert not line.endswith('\t')
+            for record in reader:
+                writer.write_record(record)
+            out.seek(0)
+            out_str = out.getvalue()
+            for line in out_str.split('\n'):
+                if line.startswith('##'):
+                    continue
+                if line.startswith('#CHROM'):
+                    assert 'FORMAT' not in line
+                assert not line.endswith('\t')
 
 
 class TestGoNL(unittest.TestCase):
 
     def testParse(self):
-        reader = vcf.Reader(fh('gonl.chr20.release4.gtc.vcf'))
-        for _ in reader:
-            pass
+        with fh('gonl.chr20.release4.gtc.vcf') as fp:
+            reader = vcf.Reader(fp)
+            for _ in reader:
+                pass
 
     def test_contig_line(self):
-        reader = vcf.Reader(fh('gonl.chr20.release4.gtc.vcf'))
-        self.assertEqual(reader.contigs['1'].length, 249250621)
+        with fh('gonl.chr20.release4.gtc.vcf') as fp:
+            reader = vcf.Reader(fp)
+            self.assertEqual(reader.contigs['1'].length, 249250621)
 
 
 class TestStringAsFlag(unittest.TestCase):
@@ -325,9 +354,10 @@ class TestStringAsFlag(unittest.TestCase):
     def test_string_as_flag(self):
         """A flag INFO field is declared as string (not allowed by the spec,
         but seen in practice)."""
-        reader = vcf.Reader(fh('string_as_flag.vcf', 'r'))
-        for _ in reader:
-            pass
+        with fh('string_as_flag.vcf', 'r') as fp:
+            reader = vcf.Reader(fp)
+            for _ in reader:
+                pass
 
 
 class TestInfoOrder(unittest.TestCase):
@@ -348,337 +378,364 @@ class TestInfoOrder(unittest.TestCase):
         definition in the header and undefined fields should be last and in
         alphabetical order.
         """
-        reader = vcf.Reader(fh('1kg.sites.vcf', 'r'))
-        out = StringIO()
-        writer = vcf.Writer(out, reader, lineterminator='\n')
+        with fh('1kg.sites.vcf', 'r') as fp:
+            reader = vcf.Reader(fp)
+            out = StringIO()
+            writer = vcf.Writer(out, reader, lineterminator='\n')
 
-        for record in reader:
-            writer.write_record(record)
-        out.seek(0)
-        out_str = out.getvalue()
+            for record in reader:
+                writer.write_record(record)
+            out.seek(0)
+            out_str = out.getvalue()
 
-        definitions = []
-        for line in out_str.split('\n'):
-            if line.startswith('##INFO='):
-                definitions.append(line.split('ID=')[1].split(',')[0])
-            if not line or line.startswith('#'):
-                continue
-            fields = [f.split('=')[0] for f in line.split('\t')[7].split(';')]
-            self._assert_order(definitions, fields)
+            definitions = []
+            for line in out_str.split('\n'):
+                if line.startswith('##INFO='):
+                    definitions.append(line.split('ID=')[1].split(',')[0])
+                if not line or line.startswith('#'):
+                    continue
+                fields = [f.split('=')[0] for f in line.split('\t')[7].split(';')]
+                self._assert_order(definitions, fields)
 
 
 class TestInfoTypeCharacter(unittest.TestCase):
     def test_parse(self):
-        reader = vcf.Reader(fh('info-type-character.vcf'))
-        record = next(reader)
-        self.assertEqual(record.INFO['FLOAT_1'], 123.456)
-        self.assertEqual(record.INFO['CHAR_1'], 'Y')
-        self.assertEqual(record.INFO['FLOAT_N'], [123.456])
-        self.assertEqual(record.INFO['CHAR_N'], ['Y'])
+        with fh('info-type-character.vcf') as fp:
+            reader = vcf.Reader(fp)
+            record = next(reader)
+            self.assertEqual(record.INFO['FLOAT_1'], 123.456)
+            self.assertEqual(record.INFO['CHAR_1'], 'Y')
+            self.assertEqual(record.INFO['FLOAT_N'], [123.456])
+            self.assertEqual(record.INFO['CHAR_N'], ['Y'])
 
     def test_write(self):
-        reader = vcf.Reader(fh('info-type-character.vcf'))
-        out = StringIO()
-        writer = vcf.Writer(out, reader)
+        with fh('info-type-character.vcf') as fp:
+            reader = vcf.Reader(fp)
+            out = StringIO()
+            writer = vcf.Writer(out, reader)
 
-        records = list(reader)
+            records = list(reader)
 
-        for record in records:
-            writer.write_record(record)
-        out.seek(0)
-        reader2 = vcf.Reader(out)
+            for record in records:
+                writer.write_record(record)
 
-        for l, r in zip(records, reader2):
-            self.assertEqual(l.INFO, r.INFO)
+            out.seek(0)
+            reader2 = vcf.Reader(out)
+
+            for original_record, reader2_record in zip(records, reader2):
+                self.assertEqual(original_record.INFO, reader2_record.INFO)
 
 
 class TestBadInfoFields(unittest.TestCase):
     def test_parse(self):
-        reader = vcf.Reader(fh('bad-info-character.vcf'))
-        record = next(reader)
-        self.assertEqual(record.INFO['DOT_1'], None)
-        self.assertEqual(record.INFO['DOT_3'], [None, None, None])
-        self.assertEqual(record.INFO['DOT_N'], [None])
-        self.assertEqual(record.INFO['EMPTY_1'], None)
-        # Perhaps EMPTY_3 should yield [None, None, None] but this is really a
-        # cornercase of unspecified behaviour.
-        self.assertEqual(record.INFO['EMPTY_3'], [None])
-        self.assertEqual(record.INFO['EMPTY_N'], [None])
-        self.assertEqual(record.INFO['NOTEMPTY_1'], 1)
-        self.assertEqual(record.INFO['NOTEMPTY_3'], [1, 2, 3])
-        self.assertEqual(record.INFO['NOTEMPTY_N'], [1])
+        with fh('bad-info-character.vcf') as fp:
+            reader = vcf.Reader(fp)
+            record = next(reader)
+            self.assertEqual(record.INFO['DOT_1'], None)
+            self.assertEqual(record.INFO['DOT_3'], [None, None, None])
+            self.assertEqual(record.INFO['DOT_N'], [None])
+            self.assertEqual(record.INFO['EMPTY_1'], None)
+            # Perhaps EMPTY_3 should yield [None, None, None] but this is really a
+            # cornercase of unspecified behaviour.
+            self.assertEqual(record.INFO['EMPTY_3'], [None])
+            self.assertEqual(record.INFO['EMPTY_N'], [None])
+            self.assertEqual(record.INFO['NOTEMPTY_1'], 1)
+            self.assertEqual(record.INFO['NOTEMPTY_3'], [1, 2, 3])
+            self.assertEqual(record.INFO['NOTEMPTY_N'], [1])
 
 
 class TestParseMetaLine(unittest.TestCase):
+
     def test_parse(self):
-        reader = vcf.Reader(fh('parse-meta-line.vcf'))
-        f = reader.metadata['MYFIELD'][0]
-        self.assertEqual(f['ID'], 'SomeField')
-        self.assertEqual(f['Version'], '3.4-0-g7e26428')
-        self.assertEqual(f['Date'], '"Wed Oct 07 09:11:47 CEST 2015"')
-        self.assertEqual(f['Options'], '"< 4 and > 3"')
-        next(reader)
+        with fh('parse-meta-line.vcf') as fp:
+            reader = vcf.Reader(fp)
+            f = reader.metadata['MYFIELD'][0]
+            self.assertEqual(f['ID'], 'SomeField')
+            self.assertEqual(f['Version'], '3.4-0-g7e26428')
+            self.assertEqual(f['Date'], '"Wed Oct 07 09:11:47 CEST 2015"')
+            self.assertEqual(f['Options'], '"< 4 and > 3"')
+            next(reader)
 
     def test_write(self):
-        reader = vcf.Reader(fh('parse-meta-line.vcf'))
-        out = StringIO()
-        writer = vcf.Writer(out, reader)
+        with fh('parse-meta-line.vcf') as fp:
+            reader = vcf.Reader(fp)
+            out = StringIO()
+            writer = vcf.Writer(out, reader)
 
-        records = list(reader)
+            records = list(reader)
 
-        for record in records:
-            writer.write_record(record)
-        out.seek(0)
-        reader2 = vcf.Reader(out)
+            for record in records:
+                writer.write_record(record)
+            out.seek(0)
+            reader2 = vcf.Reader(out)
 
-        f = reader2.metadata['MYFIELD'][0]
-        self.assertEqual(f['ID'], 'SomeField')
-        self.assertEqual(f['Version'], '3.4-0-g7e26428')
-        self.assertEqual(f['Date'], '"Wed Oct 07 09:11:47 CEST 2015"')
-        self.assertEqual(f['Options'], '"< 4 and > 3"')
+            f = reader2.metadata['MYFIELD'][0]
+            self.assertEqual(f['ID'], 'SomeField')
+            self.assertEqual(f['Version'], '3.4-0-g7e26428')
+            self.assertEqual(f['Date'], '"Wed Oct 07 09:11:47 CEST 2015"')
+            self.assertEqual(f['Options'], '"< 4 and > 3"')
 
-        for l, r in zip(records, reader2):
-            self.assertEqual(l.INFO, r.INFO)
+            for original_record, reader2_record in zip(records, reader2):
+                self.assertEqual(original_record.INFO, reader2_record.INFO)
 
 
 class TestGatkOutputWriter(unittest.TestCase):
 
     def testWrite(self):
 
-        reader = vcf.Reader(fh('gatk.vcf'))
-        out = StringIO()
-        writer = vcf.Writer(out, reader)
+        with fh('gatk.vcf') as fp:
+            reader = vcf.Reader(fp)
+            out = StringIO()
+            writer = vcf.Writer(out, reader)
 
-        records = list(reader)
+            records = list(reader)
 
-        for record in records:
-            writer.write_record(record)
-        out.seek(0)
-        out_str = out.getvalue()
-        for line in out_str.split("\n"):
-            if line.startswith("##contig"):
-                assert line.startswith('##contig=<'), "Found dictionary in contig line: {0}".format(line)
-        print (out_str)
-        reader2 = vcf.Reader(out)
+            for record in records:
+                writer.write_record(record)
+            out.seek(0)
+            out_str = out.getvalue()
+            for line in out_str.split("\n"):
+                if line.startswith("##contig"):
+                    assert line.startswith('##contig=<'), "Found dictionary in contig line: {0}".format(line)
+            print(out_str)
+            reader2 = vcf.Reader(out)
 
-        self.assertEqual(reader.samples, reader2.samples)
-        self.assertEqual(reader.formats, reader2.formats)
-        self.assertEqual(reader.infos, reader2.infos)
-        self.assertEqual(reader.contigs, reader2.contigs)
+            self.assertEqual(reader.samples, reader2.samples)
+            self.assertEqual(reader.formats, reader2.formats)
+            self.assertEqual(reader.infos, reader2.infos)
+            self.assertEqual(reader.contigs, reader2.contigs)
 
-        for l, r in zip(records, reader2):
-            self.assertEqual(l.samples, r.samples)
+            for original_record, reader2_record in zip(records, reader2):
+                self.assertEqual(original_record.samples, reader2_record.samples)
 
-            # test for call data equality, since equality on the sample calls
-            # may not always mean their data are all equal
-            for l_call, r_call in zip(l.samples, r.samples):
-                self.assertEqual(l_call.data, r_call.data)
+                # test for call data equality, since equality on the sample calls
+                # may not always mean their data are all equal
+                for l_call, r_call in zip(original_record.samples, reader2_record.samples):
+                    self.assertEqual(l_call.data, r_call.data)
 
 
 class TestBcfToolsOutputWriter(unittest.TestCase):
 
     def testWrite(self):
 
-        reader = vcf.Reader(fh('bcftools.vcf'))
-        out = StringIO()
-        writer = vcf.Writer(out, reader)
+        with fh('bcftools.vcf') as fp:
+            reader = vcf.Reader(fp)
+            out = StringIO()
+            writer = vcf.Writer(out, reader)
 
-        records = list(reader)
+            records = list(reader)
 
-        for record in records:
-            writer.write_record(record)
-        out.seek(0)
-        print (out.getvalue())
-        reader2 = vcf.Reader(out)
+            for record in records:
+                writer.write_record(record)
+            out.seek(0)
+            print(out.getvalue())
+            reader2 = vcf.Reader(out)
 
-        self.assertEqual(reader.samples, reader2.samples)
-        self.assertEqual(reader.formats, reader2.formats)
-        self.assertEqual(reader.infos, reader2.infos)
+            self.assertEqual(reader.samples, reader2.samples)
+            self.assertEqual(reader.formats, reader2.formats)
+            self.assertEqual(reader.infos, reader2.infos)
 
-        for l, r in zip(records, reader2):
-            self.assertEqual(l.samples, r.samples)
+            for original_record, reader2_record in zip(records, reader2):
+                self.assertEqual(original_record.samples, reader2_record.samples)
 
-            # test for call data equality, since equality on the sample calls
-            # may not always mean their data are all equal
-            for l_call, r_call in zip(l.samples, r.samples):
-                self.assertEqual(l_call.data, r_call.data)
+                # test for call data equality, since equality on the sample calls
+                # may not always mean their data are all equal
+                for l_call, r_call in zip(original_record.samples, reader2_record.samples):
+                    self.assertEqual(l_call.data, r_call.data)
 
 
 class TestWriterDictionaryMeta(unittest.TestCase):
 
     def testWrite(self):
 
-        reader = vcf.Reader(fh('example-4.1-bnd.vcf'))
-        out = StringIO()
-        writer = vcf.Writer(out, reader)
+        with fh('example-4.1-bnd.vcf') as fp:
+            reader = vcf.Reader(fp)
+            out = StringIO()
+            writer = vcf.Writer(out, reader)
 
-        records = list(reader)
+            records = list(reader)
 
-        for record in records:
-            writer.write_record(record)
-        out.seek(0)
-        out_str = out.getvalue()
-        for line in out_str.split("\n"):
-            if line.startswith("##PEDIGREE"):
-                self.assertEqual(line, '##PEDIGREE=<Derived="Tumor",Original="Germline">')
-            if line.startswith("##SAMPLE"):
-                assert line.startswith('##SAMPLE=<'), "Found dictionary in meta line: {0}".format(line)
+            for record in records:
+                writer.write_record(record)
+            out.seek(0)
+            out_str = out.getvalue()
+            for line in out_str.split("\n"):
+                if line.startswith("##PEDIGREE"):
+                    self.assertEqual(line, '##PEDIGREE=<Derived="Tumor",Original="Germline">')
+                if line.startswith("##SAMPLE"):
+                    assert line.startswith('##SAMPLE=<'), "Found dictionary in meta line: {0}".format(line)
 
 
 class TestSamplesSpace(unittest.TestCase):
     filename = 'samples-space.vcf'
     samples = ['NA 00001', 'NA 00002', 'NA 00003']
+
     def test_samples(self):
-        self.reader = vcf.Reader(fh(self.filename), strict_whitespace=True)
-        self.assertEqual(self.reader.samples, self.samples)
+        with fh(self.filename) as fp:
+            self.reader = vcf.Reader(fp, strict_whitespace=True)
+            self.assertEqual(self.reader.samples, self.samples)
 
 
 class TestMetadataWhitespace(unittest.TestCase):
     filename = 'metadata-whitespace.vcf'
+
     def test_metadata_whitespace(self):
         """
         Test parsing metadata header lines with whitespace.
         """
-        self.reader = vcf.Reader(fh(self.filename))
+        with fh(self.filename) as fp:
+            self.reader = vcf.Reader(fp)
 
-        # Pick one INFO line and assert that we parsed it correctly.
-        info_indel = self.reader.infos['INDEL']
-        assert info_indel.id == 'INDEL'
-        assert info_indel.num == 0
-        assert info_indel.type == 'Flag'
-        assert info_indel.desc == 'Indicates that the variant is an INDEL.'
+            # Pick one INFO line and assert that we parsed it correctly.
+            info_indel = self.reader.infos['INDEL']
+            assert info_indel.id == 'INDEL'
+            assert info_indel.num == 0
+            assert info_indel.type == 'Flag'
+            assert info_indel.desc == 'Indicates that the variant is an INDEL.'
 
-        # Test we can walk the file at least.
-        for r in self.reader:
-            for c in r:
-                pass
+            # Test we can walk the file at least.
+            for r in self.reader:
+                for c in r:
+                    ignored(c)
 
 
 class TestMixedFiltering(unittest.TestCase):
     filename = 'mixed-filtering.vcf'
+
     def test_mixed_filtering(self):
         """
         Test mix of FILTER values (pass, filtered, no filtering).
         """
-        reader = vcf.Reader(fh(self.filename))
-        self.assertEqual(next(reader).FILTER, [])
-        self.assertEqual(next(reader).FILTER, ['q10'])
-        self.assertEqual(next(reader).FILTER, [])
-        self.assertEqual(next(reader).FILTER, None)
-        self.assertEqual(next(reader).FILTER, ['q10', 'q50'])
+        with fh(self.filename) as fp:
+            reader = vcf.Reader(fp)
+            self.assertEqual(next(reader).FILTER, [])
+            self.assertEqual(next(reader).FILTER, ['q10'])
+            self.assertEqual(next(reader).FILTER, [])
+            self.assertEqual(next(reader).FILTER, None)
+            self.assertEqual(next(reader).FILTER, ['q10', 'q50'])
 
 
 class TestRecord(unittest.TestCase):
 
     def test_num_calls(self):
-        reader = vcf.Reader(fh('example-4.0.vcf'))
-        for var in reader:
-            num_calls = (var.num_hom_ref + var.num_hom_alt + \
-                         var.num_het + var.num_unknown)
-            self.assertEqual(len(var.samples), num_calls)
+        with fh('example-4.0.vcf') as fp:
+            reader = vcf.Reader(fp)
+            for var in reader:
+                num_calls = (var.num_hom_ref
+                             + var.num_hom_alt
+                             + var.num_het
+                             + var.num_unknown)
+                self.assertEqual(len(var.samples), num_calls)
 
     def test_dunder_eq(self):
-        rec = next(vcf.Reader(fh('example-4.0.vcf')))
-        self.assertFalse(rec == None)
-        self.assertFalse(None == rec)
+        with fh('example-4.0.vcf') as fp:
+            rec = next(vcf.Reader(fp))
+            self.assertFalse(rec == None)  # noQA - right-handed check of == cannot be rewritten with 'is'
+            self.assertFalse(None == rec)  # noQA - left-handed check of == cannot be rewritten with 'is'
 
     def test_call_rate(self):
-        reader = vcf.Reader(fh('example-4.0.vcf'))
-        for var in reader:
-            call_rate = var.call_rate
-            if var.POS == 14370:
-                self.assertEqual(3.0/3.0, call_rate)
-            if var.POS == 17330:
-                self.assertEqual(3.0/3.0, call_rate)
-            if var.POS == 1110696:
-                self.assertEqual(3.0/3.0, call_rate)
-            if var.POS == 1230237:
-                self.assertEqual(3.0/3.0, call_rate)
-            if var.POS == 1231234:
-                self.assertEqual(3.0/3.0, call_rate)
-            elif var.POS == 1234567:
-                self.assertEqual(2.0/3.0, call_rate)
+        with fh('example-4.0.vcf') as fp:
+            reader = vcf.Reader(fp)
+            for var in reader:
+                call_rate = var.call_rate
+                if var.POS == 14370:
+                    self.assertEqual(3.0/3.0, call_rate)
+                if var.POS == 17330:
+                    self.assertEqual(3.0/3.0, call_rate)
+                if var.POS == 1110696:
+                    self.assertEqual(3.0/3.0, call_rate)
+                if var.POS == 1230237:
+                    self.assertEqual(3.0/3.0, call_rate)
+                if var.POS == 1231234:
+                    self.assertEqual(3.0/3.0, call_rate)
+                elif var.POS == 1234567:
+                    self.assertEqual(2.0/3.0, call_rate)
 
     def test_aaf(self):
-        reader = vcf.Reader(fh('example-4.0.vcf'))
-        for var in reader:
-            aaf = var.aaf
-            if var.POS == 14370:
-                self.assertEqual([3.0/6.0], aaf)
-            if var.POS == 17330:
-                self.assertEqual([1.0/6.0], aaf)
-            if var.POS == 1110696:
-                self.assertEqual([2.0/6.0, 4.0/6.0], aaf)
-            if var.POS == 1230237:
-                self.assertEqual([0.0/6.0], aaf)
-            if var.POS == 1231234:
-                self.assertEqual([2.0/6.0], aaf)
-            elif var.POS == 1234567:
-                self.assertEqual([2.0/4.0, 1.0/4.0], aaf)
-        reader = vcf.Reader(fh('example-4.1-ploidy.vcf'))
-        for var in reader:
-            aaf = var.aaf
-            if var.POS == 60034:
-                self.assertEqual([4.0/6.0], aaf)
-            elif var.POS == 60387:
-                self.assertEqual([1.0/3.0], aaf)
+        with fh('example-4.0.vcf') as fp:
+            reader = vcf.Reader(fp)
+            for var in reader:
+                aaf = var.aaf
+                if var.POS == 14370:
+                    self.assertEqual([3.0/6.0], aaf)
+                if var.POS == 17330:
+                    self.assertEqual([1.0/6.0], aaf)
+                if var.POS == 1110696:
+                    self.assertEqual([2.0/6.0, 4.0/6.0], aaf)
+                if var.POS == 1230237:
+                    self.assertEqual([0.0/6.0], aaf)
+                if var.POS == 1231234:
+                    self.assertEqual([2.0/6.0], aaf)
+                elif var.POS == 1234567:
+                    self.assertEqual([2.0/4.0, 1.0/4.0], aaf)
+
+        with fh('example-4.1-ploidy.vcf') as fp:
+            reader = vcf.Reader(fp)
+            for var in reader:
+                aaf = var.aaf
+                if var.POS == 60034:
+                    self.assertEqual([4.0/6.0], aaf)
+                elif var.POS == 60387:
+                    self.assertEqual([1.0/3.0], aaf)
 
     def test_pi(self):
-        reader = vcf.Reader(fh('example-4.0.vcf'))
-        for var in reader:
-            pi = var.nucl_diversity
-            if var.POS == 14370:
-                self.assertEqual(6.0/10.0, pi)
-            if var.POS == 17330:
-                self.assertEqual(1.0/3.0, pi)
-            if var.POS == 1110696:
-                self.assertEqual(None, pi)
-            if var.POS == 1230237:
-                self.assertEqual(0.0/6.0, pi)
-            if var.POS == 1231234:
-                self.assertEqual((6.0/(6.0-1))*(2.0*(1.0/3.0)*(2.0/3.0)) , pi)
-            elif var.POS == 1234567:
-                self.assertEqual(None, pi)
+        with fh('example-4.0.vcf') as fp:
+            reader = vcf.Reader(fp)
+            for var in reader:
+                pi = var.nucl_diversity
+                if var.POS == 14370:
+                    self.assertEqual(6.0/10.0, pi)
+                if var.POS == 17330:
+                    self.assertEqual(1.0/3.0, pi)
+                if var.POS == 1110696:
+                    self.assertEqual(None, pi)
+                if var.POS == 1230237:
+                    self.assertEqual(0.0/6.0, pi)
+                if var.POS == 1231234:
+                    self.assertEqual((6.0/(6.0-1))*(2.0*(1.0/3.0)*(2.0/3.0)), pi)
+                elif var.POS == 1234567:
+                    self.assertEqual(None, pi)
 
     def test_heterozygosity(self):
-        reader = vcf.Reader(fh('example-4.0.vcf'))
-        for var in reader:
-            het = var.heterozygosity
-            if var.POS == 14370:
-                self.assertEqual(0.5, het)
-            if var.POS == 17330:
-                self.assertEqual(1-((1.0/6)**2 + (5.0/6)**2), het)
-            if var.POS == 1110696:
-                self.assertEqual(4.0/9.0, het)
-            if var.POS == 1230237:
-                self.assertEqual(0.0, het)
-            if var.POS == 1231234:
-                self.assertEqual(4.0/9.0, het)
-            elif var.POS == 1234567:
-                self.assertEqual(5.0/8.0, het)
+        with fh('example-4.0.vcf') as fp:
+            reader = vcf.Reader(fp)
+            for var in reader:
+                het = var.heterozygosity
+                if var.POS == 14370:
+                    self.assertEqual(0.5, het)
+                if var.POS == 17330:
+                    self.assertEqual(1-((1.0/6)**2 + (5.0/6)**2), het)
+                if var.POS == 1110696:
+                    self.assertEqual(4.0/9.0, het)
+                if var.POS == 1230237:
+                    self.assertEqual(0.0, het)
+                if var.POS == 1231234:
+                    self.assertEqual(4.0/9.0, het)
+                elif var.POS == 1234567:
+                    self.assertEqual(5.0/8.0, het)
 
     def test_is_snp(self):
-        reader = vcf.Reader(fh('example-4.0.vcf'))
-        for r in reader:
-            print(r)
-            for c in r:
-                print(c)
-                assert c
-        for var in reader:
-            is_snp = var.is_snp
-            if var.POS == 14370:
-                self.assertEqual(True, is_snp)
-            if var.POS == 17330:
-                self.assertEqual(True, is_snp)
-            if var.POS == 1110696:
-                self.assertEqual(True, is_snp)
-            if var.POS == 1230237:
-                self.assertEqual(False, is_snp)
-            if var.POS == 1231234:
-                self.assertEqual(False, is_snp)
-            elif var.POS == 1234567:
-                self.assertEqual(False, is_snp)
-
+        with fh('example-4.0.vcf') as fp:
+            reader = vcf.Reader(fp)
+            for r in reader:
+                print(r)
+                for c in r:
+                    print(c)
+                    assert c
+            for var in reader:
+                is_snp = var.is_snp
+                if var.POS == 14370:
+                    self.assertEqual(True, is_snp)
+                if var.POS == 17330:
+                    self.assertEqual(True, is_snp)
+                if var.POS == 1110696:
+                    self.assertEqual(True, is_snp)
+                if var.POS == 1230237:
+                    self.assertEqual(False, is_snp)
+                if var.POS == 1231234:
+                    self.assertEqual(False, is_snp)
+                elif var.POS == 1234567:
+                    self.assertEqual(False, is_snp)
 
     def test_is_snp_for_n_alt(self):
         record = model._Record(
@@ -696,280 +753,286 @@ class TestRecord(unittest.TestCase):
         )
         self.assertTrue(record.is_snp)
 
-
     def test_is_indel(self):
-        reader = vcf.Reader(fh('example-4.0.vcf'))
-        for var in reader:
-            is_indel = var.is_indel
-            if var.POS == 14370:
-                self.assertEqual(False, is_indel)
-            if var.POS == 17330:
-                self.assertEqual(False, is_indel)
-            if var.POS == 1110696:
-                self.assertEqual(False, is_indel)
-            if var.POS == 1230237:
-                self.assertEqual(False, is_indel)
-            if var.POS == 1231234:
-                self.assertEqual(True, is_indel)
-            elif var.POS == 1234567:
-                self.assertEqual(True, is_indel)
+        with fh('example-4.0.vcf') as fp:
+            reader = vcf.Reader(fp)
+            for var in reader:
+                is_indel = var.is_indel
+                if var.POS == 14370:
+                    self.assertEqual(False, is_indel)
+                if var.POS == 17330:
+                    self.assertEqual(False, is_indel)
+                if var.POS == 1110696:
+                    self.assertEqual(False, is_indel)
+                if var.POS == 1230237:
+                    self.assertEqual(False, is_indel)
+                if var.POS == 1231234:
+                    self.assertEqual(True, is_indel)
+                elif var.POS == 1234567:
+                    self.assertEqual(True, is_indel)
 
     def test_is_transition(self):
-        reader = vcf.Reader(fh('example-4.0.vcf'))
-        for var in reader:
-            is_trans = var.is_transition
-            if var.POS == 14370:
-                self.assertEqual(True, is_trans)
-            if var.POS == 17330:
-                self.assertEqual(False, is_trans)
-            if var.POS == 1110696:
-                self.assertEqual(False, is_trans)
-            if var.POS == 1230237:
-                self.assertEqual(False, is_trans)
-            if var.POS == 1231234:
-                self.assertEqual(False, is_trans)
-            elif var.POS == 1234567:
-                self.assertEqual(False, is_trans)
+        with fh('example-4.0.vcf') as fp:
+            reader = vcf.Reader(fp)
+            for var in reader:
+                is_trans = var.is_transition
+                if var.POS == 14370:
+                    self.assertEqual(True, is_trans)
+                if var.POS == 17330:
+                    self.assertEqual(False, is_trans)
+                if var.POS == 1110696:
+                    self.assertEqual(False, is_trans)
+                if var.POS == 1230237:
+                    self.assertEqual(False, is_trans)
+                if var.POS == 1231234:
+                    self.assertEqual(False, is_trans)
+                elif var.POS == 1234567:
+                    self.assertEqual(False, is_trans)
 
     def test_is_deletion(self):
-        reader = vcf.Reader(fh('example-4.0.vcf'))
-        for var in reader:
-            is_del = var.is_deletion
-            if var.POS == 14370:
-                self.assertEqual(False, is_del)
-            if var.POS == 17330:
-                self.assertEqual(False, is_del)
-            if var.POS == 1110696:
-                self.assertEqual(False, is_del)
-            if var.POS == 1230237:
-                self.assertEqual(False, is_del)
-            if var.POS == 1231234:
-                self.assertEqual(True, is_del)
-            elif var.POS == 1234567:
-                self.assertEqual(False, is_del)
+        with fh('example-4.0.vcf') as fp:
+            reader = vcf.Reader(fp)
+            for var in reader:
+                is_del = var.is_deletion
+                if var.POS == 14370:
+                    self.assertEqual(False, is_del)
+                if var.POS == 17330:
+                    self.assertEqual(False, is_del)
+                if var.POS == 1110696:
+                    self.assertEqual(False, is_del)
+                if var.POS == 1230237:
+                    self.assertEqual(False, is_del)
+                if var.POS == 1231234:
+                    self.assertEqual(True, is_del)
+                elif var.POS == 1234567:
+                    self.assertEqual(False, is_del)
 
     def test_var_type(self):
-        reader = vcf.Reader(fh('example-4.0.vcf'))
-        for var in reader:
-            type = var.var_type
-            if var.POS == 14370:
-                self.assertEqual("snp", type)
-            if var.POS == 17330:
-                self.assertEqual("snp", type)
-            if var.POS == 1110696:
-                self.assertEqual("snp", type)
-            if var.POS == 1230237:
-                self.assertEqual("unknown", type)
-            if var.POS == 1231234:
-                self.assertEqual("indel", type)
-            elif var.POS == 1234567:
-                self.assertEqual("indel", type)
-        # SV tests
-        reader = vcf.Reader(fh('example-4.1-sv.vcf'))
-        for var in reader:
-            type = var.var_type
-            if var.POS == 2827693:
-                self.assertEqual("sv", type)
-            if var.POS == 321682:
-                self.assertEqual("sv", type)
-            if var.POS == 14477084:
-                self.assertEqual("sv", type)
-            if var.POS == 9425916:
-                self.assertEqual("sv", type)
-            elif var.POS == 12665100:
-                self.assertEqual("sv", type)
-            elif var.POS == 18665128:
-                self.assertEqual("sv", type)
+        with fh('example-4.0.vcf') as fp:
+            reader = vcf.Reader(fp)
+            for var in reader:
+                type = var.var_type
+                if var.POS == 14370:
+                    self.assertEqual("snp", type)
+                if var.POS == 17330:
+                    self.assertEqual("snp", type)
+                if var.POS == 1110696:
+                    self.assertEqual("snp", type)
+                if var.POS == 1230237:
+                    self.assertEqual("unknown", type)
+                if var.POS == 1231234:
+                    self.assertEqual("indel", type)
+                elif var.POS == 1234567:
+                    self.assertEqual("indel", type)
 
+        # SV tests
+        with fh('example-4.1-sv.vcf') as fp:
+            reader = vcf.Reader(fp)
+            for var in reader:
+                type = var.var_type
+                if var.POS == 2827693:
+                    self.assertEqual("sv", type)
+                if var.POS == 321682:
+                    self.assertEqual("sv", type)
+                if var.POS == 14477084:
+                    self.assertEqual("sv", type)
+                if var.POS == 9425916:
+                    self.assertEqual("sv", type)
+                elif var.POS == 12665100:
+                    self.assertEqual("sv", type)
+                elif var.POS == 18665128:
+                    self.assertEqual("sv", type)
 
     def test_var_subtype(self):
-        reader = vcf.Reader(fh('example-4.0.vcf'))
-        for var in reader:
-            subtype = var.var_subtype
-            if var.POS == 14370:
-                self.assertEqual("ts", subtype)
-            if var.POS == 17330:
-                self.assertEqual("tv", subtype)
-            if var.POS == 1110696:
-                self.assertEqual("unknown", subtype)
-            if var.POS == 1230237:
-                self.assertEqual("unknown", subtype)
-            if var.POS == 1231234:
-                self.assertEqual("del", subtype)
-            elif var.POS == 1234567:
-                self.assertEqual("unknown", subtype)
+        with fh('example-4.0.vcf') as fp:
+            reader = vcf.Reader(fp)
+            for var in reader:
+                subtype = var.var_subtype
+                if var.POS == 14370:
+                    self.assertEqual("ts", subtype)
+                if var.POS == 17330:
+                    self.assertEqual("tv", subtype)
+                if var.POS == 1110696:
+                    self.assertEqual("unknown", subtype)
+                if var.POS == 1230237:
+                    self.assertEqual("unknown", subtype)
+                if var.POS == 1231234:
+                    self.assertEqual("del", subtype)
+                elif var.POS == 1234567:
+                    self.assertEqual("unknown", subtype)
+
         # SV tests
-        reader = vcf.Reader(fh('example-4.1-sv.vcf'))
-        for var in reader:
-            subtype = var.var_subtype
-            if var.POS == 2827693:
-                self.assertEqual("DEL", subtype)
-            if var.POS == 321682:
-                self.assertEqual("DEL", subtype)
-            if var.POS == 14477084:
-                self.assertEqual("DEL:ME:ALU", subtype)
-            if var.POS == 9425916:
-                self.assertEqual("INS:ME:L1", subtype)
-            elif var.POS == 12665100:
-                self.assertEqual("DUP", subtype)
-            elif var.POS == 18665128:
-                self.assertEqual("DUP:TANDEM", subtype)
+        with fh('example-4.1-sv.vcf') as fp:
+            reader = vcf.Reader(fp)
+            for var in reader:
+                subtype = var.var_subtype
+                if var.POS == 2827693:
+                    self.assertEqual("DEL", subtype)
+                if var.POS == 321682:
+                    self.assertEqual("DEL", subtype)
+                if var.POS == 14477084:
+                    self.assertEqual("DEL:ME:ALU", subtype)
+                if var.POS == 9425916:
+                    self.assertEqual("INS:ME:L1", subtype)
+                elif var.POS == 12665100:
+                    self.assertEqual("DUP", subtype)
+                elif var.POS == 18665128:
+                    self.assertEqual("DUP:TANDEM", subtype)
 
     def test_is_sv(self):
-        reader = vcf.Reader(fh('example-4.1-sv.vcf'))
-        for var in reader:
-            is_sv = var.is_sv
-            if var.POS == 2827693:
-                self.assertEqual(True, is_sv)
-            if var.POS == 321682:
-                self.assertEqual(True, is_sv)
-            if var.POS == 14477084:
-                self.assertEqual(True, is_sv)
-            if var.POS == 9425916:
-                self.assertEqual(True, is_sv)
-            elif var.POS == 12665100:
-                self.assertEqual(True, is_sv)
-            elif var.POS == 18665128:
-                self.assertEqual(True, is_sv)
+        with fh('example-4.1-sv.vcf') as fp:
+            reader = vcf.Reader(fp)
+            for var in reader:
+                is_sv = var.is_sv
+                if var.POS == 2827693:
+                    self.assertEqual(True, is_sv)
+                if var.POS == 321682:
+                    self.assertEqual(True, is_sv)
+                if var.POS == 14477084:
+                    self.assertEqual(True, is_sv)
+                if var.POS == 9425916:
+                    self.assertEqual(True, is_sv)
+                elif var.POS == 12665100:
+                    self.assertEqual(True, is_sv)
+                elif var.POS == 18665128:
+                    self.assertEqual(True, is_sv)
 
-        reader = vcf.Reader(fh('example-4.0.vcf'))
-        for var in reader:
-            is_sv = var.is_sv
-            if var.POS == 14370:
-                self.assertEqual(False, is_sv)
-            if var.POS == 17330:
-                self.assertEqual(False, is_sv)
-            if var.POS == 1110696:
-                self.assertEqual(False, is_sv)
-            if var.POS == 1230237:
-                self.assertEqual(False, is_sv)
-            if var.POS == 1231234:
-                self.assertEqual(False, is_sv)
-            elif var.POS == 1234567:
-                self.assertEqual(False, is_sv)
+        with fh('example-4.0.vcf') as fp:
+            reader = vcf.Reader(fp)
+            for var in reader:
+                is_sv = var.is_sv
+                if var.POS == 14370:
+                    self.assertEqual(False, is_sv)
+                if var.POS == 17330:
+                    self.assertEqual(False, is_sv)
+                if var.POS == 1110696:
+                    self.assertEqual(False, is_sv)
+                if var.POS == 1230237:
+                    self.assertEqual(False, is_sv)
+                if var.POS == 1231234:
+                    self.assertEqual(False, is_sv)
+                elif var.POS == 1234567:
+                    self.assertEqual(False, is_sv)
 
     def test_is_sv_precise(self):
-        reader = vcf.Reader(fh('example-4.1-sv.vcf'))
-        for var in reader:
-            is_precise = var.is_sv_precise
-            if var.POS == 2827693:
-                self.assertEqual(True, is_precise)
-            if var.POS == 321682:
-                self.assertEqual(False, is_precise)
-            if var.POS == 14477084:
-                self.assertEqual(False, is_precise)
-            if var.POS == 9425916:
-                self.assertEqual(False, is_precise)
-            elif var.POS == 12665100:
-                self.assertEqual(False, is_precise)
-            elif var.POS == 18665128:
-                self.assertEqual(False, is_precise)
+        with fh('example-4.1-sv.vcf') as fp:
+            reader = vcf.Reader(fp)
+            for var in reader:
+                is_precise = var.is_sv_precise
+                if var.POS == 2827693:
+                    self.assertEqual(True, is_precise)
+                if var.POS == 321682:
+                    self.assertEqual(False, is_precise)
+                if var.POS == 14477084:
+                    self.assertEqual(False, is_precise)
+                if var.POS == 9425916:
+                    self.assertEqual(False, is_precise)
+                elif var.POS == 12665100:
+                    self.assertEqual(False, is_precise)
+                elif var.POS == 18665128:
+                    self.assertEqual(False, is_precise)
 
-        reader = vcf.Reader(fh('example-4.0.vcf'))
-        for var in reader:
-            is_precise = var.is_sv_precise
-            if var.POS == 14370:
-                self.assertEqual(False, is_precise)
-            if var.POS == 17330:
-                self.assertEqual(False, is_precise)
-            if var.POS == 1110696:
-                self.assertEqual(False, is_precise)
-            if var.POS == 1230237:
-                self.assertEqual(False, is_precise)
-            if var.POS == 1231234:
-                self.assertEqual(False, is_precise)
-            elif var.POS == 1234567:
-                self.assertEqual(False, is_precise)
+        with fh('example-4.0.vcf') as fp:
+            reader = vcf.Reader(fp)
+            for var in reader:
+                is_precise = var.is_sv_precise
+                if var.POS == 14370:
+                    self.assertEqual(False, is_precise)
+                if var.POS == 17330:
+                    self.assertEqual(False, is_precise)
+                if var.POS == 1110696:
+                    self.assertEqual(False, is_precise)
+                if var.POS == 1230237:
+                    self.assertEqual(False, is_precise)
+                if var.POS == 1231234:
+                    self.assertEqual(False, is_precise)
+                elif var.POS == 1234567:
+                    self.assertEqual(False, is_precise)
 
     def test_sv_end(self):
-        reader = vcf.Reader(fh('example-4.1-sv.vcf'))
-        for var in reader:
-            sv_end = var.sv_end
-            if var.POS == 2827693:
-                self.assertEqual(2827680, sv_end)
-            if var.POS == 321682:
-                self.assertEqual(321887, sv_end)
-            if var.POS == 14477084:
-                self.assertEqual(14477381, sv_end)
-            if var.POS == 9425916:
-                self.assertEqual(9425916, sv_end)
-            elif var.POS == 12665100:
-                self.assertEqual(12686200, sv_end)
-            elif var.POS == 18665128:
-                self.assertEqual(18665204, sv_end)
+        with fh('example-4.1-sv.vcf') as fp:
+            reader = vcf.Reader(fp)
+            for var in reader:
+                sv_end = var.sv_end
+                if var.POS == 2827693:
+                    self.assertEqual(2827680, sv_end)
+                if var.POS == 321682:
+                    self.assertEqual(321887, sv_end)
+                if var.POS == 14477084:
+                    self.assertEqual(14477381, sv_end)
+                if var.POS == 9425916:
+                    self.assertEqual(9425916, sv_end)
+                elif var.POS == 12665100:
+                    self.assertEqual(12686200, sv_end)
+                elif var.POS == 18665128:
+                    self.assertEqual(18665204, sv_end)
 
-        reader = vcf.Reader(fh('example-4.0.vcf'))
-        for var in reader:
-            sv_end = var.sv_end
-            if var.POS == 14370:
-                self.assertEqual(None, sv_end)
-            if var.POS == 17330:
-                self.assertEqual(None, sv_end)
-            if var.POS == 1110696:
-                self.assertEqual(None, sv_end)
-            if var.POS == 1230237:
-                self.assertEqual(None, sv_end)
-            if var.POS == 1231234:
-                self.assertEqual(None, sv_end)
-            elif var.POS == 1234567:
-                self.assertEqual(None, sv_end)
+        with fh('example-4.0.vcf') as fp:
+            reader = vcf.Reader(fp)
+            for var in reader:
+                sv_end = var.sv_end
+                if var.POS == 14370:
+                    self.assertEqual(None, sv_end)
+                if var.POS == 17330:
+                    self.assertEqual(None, sv_end)
+                if var.POS == 1110696:
+                    self.assertEqual(None, sv_end)
+                if var.POS == 1230237:
+                    self.assertEqual(None, sv_end)
+                if var.POS == 1231234:
+                    self.assertEqual(None, sv_end)
+                elif var.POS == 1234567:
+                    self.assertEqual(None, sv_end)
 
     def test_qual(self):
-        reader = vcf.Reader(fh('example-4.0.vcf'))
-        for var in reader:
-            qual = var.QUAL
-            qtype = type(qual)
-            if var.POS == 14370:
-                expected = 29
-            if var.POS == 17330:
-                expected = 3.0
-            if var.POS == 1110696:
-                expected = 1e+03
-            if var.POS == 1230237:
-                expected = 47
-            if var.POS == 1231234:
-                expected = 46
-            elif var.POS == 1234567:
-                expected = None
-            self.assertEqual(expected, qual)
-            self.assertEqual(type(expected), qtype)
+        with fh('example-4.0.vcf') as fp:
+            reader = vcf.Reader(fp)
+            for var in reader:
+                qual = var.QUAL
+                qtype = type(qual)
+                if var.POS == 14370:
+                    expected = 29
+                if var.POS == 17330:
+                    expected = 3.0
+                if var.POS == 1110696:
+                    expected = 1e+03
+                if var.POS == 1230237:
+                    expected = 47
+                if var.POS == 1231234:
+                    expected = 46
+                elif var.POS == 1234567:
+                    expected = None
+                self.assertEqual(expected, qual)
+                self.assertEqual(type(expected), qtype)
 
     def test_info_multiple_values(self):
-        reader = vcf.Reader(fh('example-4.1-info-multiple-values.vcf'))
-        var = next(reader)
-        # check Float type INFO field with multiple values
-        expected = [19.3, 47.4, 14.0]
-        actual = var.INFO['RepeatCopies']
-        self.assertEqual(expected, actual)
-        # check Integer type INFO field with multiple values
-        expected = [42, 14, 56]
-        actual = var.INFO['RepeatSize']
-        self.assertEqual(expected, actual)
-        # check String type INFO field with multiple values
-        expected = ['TCTTATCTTCTTACTTTTCATTCCTTACTCTTACTTACTTAC', 'TTACTCTTACTTAC', 'TTACTCTTACTTACTTACTCTTACTTACTTACTCTTACTTACTTACTCTTATCTTC']
-        actual = var.INFO['RepeatConsensus']
-        self.assertEqual(expected, actual)
+        with fh('example-4.1-info-multiple-values.vcf') as fp:
+            reader = vcf.Reader(fp)
+            var = next(reader)
+            # check Float type INFO field with multiple values
+            expected = [19.3, 47.4, 14.0]
+            actual = var.INFO['RepeatCopies']
+            self.assertEqual(expected, actual)
+            # check Integer type INFO field with multiple values
+            expected = [42, 14, 56]
+            actual = var.INFO['RepeatSize']
+            self.assertEqual(expected, actual)
+            # check String type INFO field with multiple values
+            expected = ['TCTTATCTTCTTACTTTTCATTCCTTACTCTTACTTACTTAC',
+                        'TTACTCTTACTTAC',
+                        'TTACTCTTACTTACTTACTCTTACTTACTTACTCTTACTTACTTACTCTTATCTTC']
+            actual = var.INFO['RepeatConsensus']
+            self.assertEqual(expected, actual)
 
     def test_pickle(self):
-        reader = vcf.Reader(fh('example-4.0.vcf'))
-        for var in reader:
-            self.assertEqual(pickle.loads(pickle.dumps(var)), var)
+        with fh('example-4.0.vcf') as fp:
+            reader = vcf.Reader(fp)
+            for var in reader:
+                self.assertEqual(pickle.loads(pickle.dumps(var)), var)
 
-    def assert_has_expected_coordinates(
-            self,
-            record,
-            expected_coordinates,
-            expected_affected_coordinates
-        ):
-        self.assertEqual(
-                (record.start, record.end),
-                expected_coordinates
-        )
-        self.assertEqual(
-                (record.affected_start, record.affected_end),
-                expected_affected_coordinates
-        )
-
+    def assert_has_expected_coordinates(self, record, expected_coordinates, expected_affected_coordinates):
+        self.assertEqual((record.start, record.end), expected_coordinates)
+        self.assertEqual((record.affected_start, record.affected_end), expected_affected_coordinates)
 
     def test_coordinates_for_snp(self):
         record = model._Record(
@@ -987,7 +1050,6 @@ class TestRecord(unittest.TestCase):
         )
         self.assert_has_expected_coordinates(record, (9, 10), (9, 10))
 
-
     def test_coordinates_for_insertion(self):
         record = model._Record(
                 '1',
@@ -1003,7 +1065,6 @@ class TestRecord(unittest.TestCase):
                 None
         )
         self.assert_has_expected_coordinates(record, (9, 10), (10, 10))
-
 
     def test_coordinates_for_deletion(self):
         record = model._Record(
@@ -1021,7 +1082,6 @@ class TestRecord(unittest.TestCase):
         )
         self.assert_has_expected_coordinates(record, (9, 12), (10, 12))
 
-
     def test_coordinates_for_None_alt(self):
         record = model._Record(
                 '1',
@@ -1037,7 +1097,6 @@ class TestRecord(unittest.TestCase):
                 None
         )
         self.assert_has_expected_coordinates(record, (9, 10), (9, 10))
-
 
     def test_coordinates_for_multiple_snps(self):
         record = model._Record(
@@ -1058,7 +1117,6 @@ class TestRecord(unittest.TestCase):
                 None
         )
         self.assert_has_expected_coordinates(record, (9, 10), (9, 10))
-
 
     def test_coordinates_for_insert_and_snp(self):
         record = model._Record(
@@ -1096,7 +1154,6 @@ class TestRecord(unittest.TestCase):
         )
         self.assert_has_expected_coordinates(record, (9, 10), (9, 10))
 
-
     def test_coordinates_for_snp_and_deletion(self):
         record = model._Record(
                 '1',
@@ -1132,7 +1189,6 @@ class TestRecord(unittest.TestCase):
                 None
         )
         self.assert_has_expected_coordinates(record, (9, 12), (10, 12))
-
 
     def test_coordinates_for_insertion_and_deletion(self):
         record = model._Record(
@@ -1170,7 +1226,6 @@ class TestRecord(unittest.TestCase):
         )
         self.assert_has_expected_coordinates(record, (9, 11), (10, 11))
 
-
     def test_coordinates_for_breakend(self):
         record = model._Record(
                 '1',
@@ -1191,132 +1246,135 @@ class TestRecord(unittest.TestCase):
 class TestCall(unittest.TestCase):
 
     def test_dunder_eq(self):
-        reader = vcf.Reader(fh('example-4.0.vcf'))
-        var = next(reader)
-        example_call = var.samples[0]
-        self.assertFalse(example_call == None)
-        self.assertFalse(None == example_call)
+        with fh('example-4.0.vcf') as fp:
+            reader = vcf.Reader(fp)
+            var = next(reader)
+            example_call = var.samples[0]
+            self.assertFalse(example_call == None)  # noQA - right-handed check of == cannot be rewritten with 'is'
+            self.assertFalse(None == example_call)  # noQA - left-handed check of == cannot be rewritten with 'is'
 
     def test_phased(self):
-        reader = vcf.Reader(fh('example-4.0.vcf'))
-        for var in reader:
-            phases = [s.phased for s in var.samples]
-            if var.POS == 14370:
-                self.assertEqual([True, True, False], phases)
-            if var.POS == 17330:
-                self.assertEqual([True, True, False], phases)
-            if var.POS == 1110696:
-                self.assertEqual([True, True, False], phases)
-            if var.POS == 1230237:
-                self.assertEqual([True, True, False], phases)
-            if var.POS == 1231234:
-                self.assertEqual([True, True, True], phases)
-            elif var.POS == 1234567:
-                self.assertEqual([False, False, False], phases)
+        with fh('example-4.0.vcf') as fp:
+            reader = vcf.Reader(fp)
+            for var in reader:
+                phases = [s.phased for s in var.samples]
+                if var.POS == 14370:
+                    self.assertEqual([True, True, False], phases)
+                if var.POS == 17330:
+                    self.assertEqual([True, True, False], phases)
+                if var.POS == 1110696:
+                    self.assertEqual([True, True, False], phases)
+                if var.POS == 1230237:
+                    self.assertEqual([True, True, False], phases)
+                if var.POS == 1231234:
+                    self.assertEqual([True, True, True], phases)
+                elif var.POS == 1234567:
+                    self.assertEqual([False, False, False], phases)
 
     def test_gt_bases(self):
-        reader = vcf.Reader(fh('example-4.0.vcf'))
-        for var in reader:
-            gt_bases = [s.gt_bases for s in var.samples]
-            if var.POS == 14370:
-                self.assertEqual(['G|G', 'A|G', 'A/A'], gt_bases)
-            elif var.POS == 17330:
-                self.assertEqual(['T|T', 'T|A', 'T/T'], gt_bases)
-            elif var.POS == 1110696:
-                self.assertEqual(['G|T', 'T|G', 'T/T'], gt_bases)
-            elif var.POS == 1230237:
-                self.assertEqual(['T|T', 'T|T', 'T/T'], gt_bases)
-            elif var.POS == 1231234:
-                self.assertEqual(['A|A', 'AT|AT', 'AT|AT'], gt_bases)
-            elif var.POS == 1234567:
-                self.assertEqual([None, 'GTCT/GTACT', 'G/G'], gt_bases)
+        with fh('example-4.0.vcf') as fp:
+            reader = vcf.Reader(fp)
+            for var in reader:
+                gt_bases = [s.gt_bases for s in var.samples]
+                if var.POS == 14370:
+                    self.assertEqual(['G|G', 'A|G', 'A/A'], gt_bases)
+                elif var.POS == 17330:
+                    self.assertEqual(['T|T', 'T|A', 'T/T'], gt_bases)
+                elif var.POS == 1110696:
+                    self.assertEqual(['G|T', 'T|G', 'T/T'], gt_bases)
+                elif var.POS == 1230237:
+                    self.assertEqual(['T|T', 'T|T', 'T/T'], gt_bases)
+                elif var.POS == 1231234:
+                    self.assertEqual(['A|A', 'AT|AT', 'AT|AT'], gt_bases)
+                elif var.POS == 1234567:
+                    self.assertEqual([None, 'GTCT/GTACT', 'G/G'], gt_bases)
 
     def test_gt_types(self):
-        reader = vcf.Reader(fh('example-4.0.vcf'))
-        for var in reader:
-            for s in var:
-                print(s.data)
-            gt_types = [s.gt_type for s in var.samples]
-            if var.POS == 14370:
-                self.assertEqual([0,1,2], gt_types)
-            elif var.POS == 17330:
-                self.assertEqual([0,1,0], gt_types)
-            elif var.POS == 1110696:
-                self.assertEqual([1,1,2], gt_types)
-            elif var.POS == 1230237:
-                self.assertEqual([0,0,0], gt_types)
-            elif var.POS == 1231234:
-                self.assertEqual([2,0,0], gt_types)
-            elif var.POS == 1234567:
-                self.assertEqual([None,1,2], gt_types)
+        with fh('example-4.0.vcf') as fp:
+            reader = vcf.Reader(fp)
+            for var in reader:
+                for s in var:
+                    print(s.data)
+                gt_types = [s.gt_type for s in var.samples]
+                if var.POS == 14370:
+                    self.assertEqual([0, 1, 2], gt_types)
+                elif var.POS == 17330:
+                    self.assertEqual([0, 1, 0], gt_types)
+                elif var.POS == 1110696:
+                    self.assertEqual([1, 1, 2], gt_types)
+                elif var.POS == 1230237:
+                    self.assertEqual([0, 0, 0], gt_types)
+                elif var.POS == 1231234:
+                    self.assertEqual([2, 0, 0], gt_types)
+                elif var.POS == 1234567:
+                    self.assertEqual([None, 1, 2], gt_types)
 
 
-@unittest.skipUnless(pysam, "test requires installation of PySAM.")
+# We now unconditionally load pysam
+# @unittest.skipUnless(pysam, "test requires installation of PySAM.")
 class TestFetch(unittest.TestCase):
 
     def setUp(self):
-        self.reader = vcf.Reader(fh('tb.vcf.gz', 'rb'))
+        self.fp = fh('tb.vcf.gz', 'rb')
+        self.reader = vcf.Reader(self.fp)
 
+    def tearDown(self):
+        self.fp.close()
 
-    def assertFetchedExpectedPositions(
-            self, fetched_variants, expected_positions):
+    def assertFetchedExpectedPositions(self, fetched_variants, expected_positions):
         fetched_positions = [var.POS for var in fetched_variants]
         self.assertEqual(fetched_positions, expected_positions)
-
 
     def testNoVariantsInRange(self):
         fetched_variants = self.reader.fetch('20', 14370, 17329)
         self.assertFetchedExpectedPositions(fetched_variants, [])
 
-
     def testNoVariantsForZeroLengthInterval(self):
         fetched_variants = self.reader.fetch('20', 14369, 14369)
         self.assertFetchedExpectedPositions(fetched_variants, [])
-
 
     def testFetchRange(self):
         fetched_variants = self.reader.fetch('20', 14369, 14370)
         self.assertFetchedExpectedPositions(fetched_variants, [14370])
 
         fetched_variants = self.reader.fetch('20', 14369, 17330)
-        self.assertFetchedExpectedPositions(
-                fetched_variants, [14370, 17330])
+        self.assertFetchedExpectedPositions(fetched_variants, [14370, 17330])
 
         fetched_variants = self.reader.fetch('20', 1110695, 1234567)
-        self.assertFetchedExpectedPositions(
-                fetched_variants, [1110696, 1230237, 1234567])
-
+        self.assertFetchedExpectedPositions(fetched_variants, [1110696, 1230237, 1234567])
 
     def testFetchesFromStartIfStartOnlySpecified(self):
         fetched_variants = self.reader.fetch('20', 1110695)
-        self.assertFetchedExpectedPositions(
-                fetched_variants, [1110696, 1230237, 1234567])
-
+        self.assertFetchedExpectedPositions(fetched_variants, [1110696, 1230237, 1234567])
 
     def testFetchesAllFromChromIfOnlyChromSpecified(self):
         fetched_variants = self.reader.fetch('20')
-        self.assertFetchedExpectedPositions(
-                fetched_variants,
-                [14370, 17330, 1110696, 1230237, 1234567]
-        )
+        self.assertFetchedExpectedPositions(fetched_variants, [14370, 17330, 1110696, 1230237, 1234567])
 
 
-@unittest.skipUnless(pysam, "test requires installation of PySAM.")
+# We now unconditionally load pysam
+# @unittest.skipUnless(pysam, "test requires installation of PySAM.")
 class TestIssue201(unittest.TestCase):
     def setUp(self):
         # This file contains some non-ASCII characters in a UTF-8 encoding.
         # https://github.com/jamescasbon/PyVCF/issues/201
-        self.reader = vcf.Reader(fh('issue-201.vcf.gz', 'rb'),
-                                 encoding='utf-8')
+        #
+        # Then shouldn't fh open it in the write encoding?
+        # Doing it as something of vcf.Reader seems too late. -kmp 22-Sep-2023
+        self.fp = fh('issue-201.vcf.gz', 'rb')
+        self.reader = vcf.Reader(self.fp, encoding='utf-8')
+
+    def tearDown(self):
+        self.fp.close()
 
     def testIterate(self):
-        for record in self.reader:
-            # Should not raise decoding errors.
+        for _ in self.reader:
+            # Should not raise decoding errors as it reads records.
             pass
 
     def testFetch(self):
-        for record in self.reader.fetch(chrom='17'):
-            # Should not raise decoding errors.
+        for _ in self.reader.fetch(chrom='17'):
+            # Should not raise decoding errors as it reads records.
             pass
 
 
@@ -1341,162 +1399,177 @@ class TestIssue246(unittest.TestCase):
     """ See https://github.com/jamescasbon/PyVCF/issues/246 """
 
     def test_FT_pass_two(self):
-        reader=vcf.Reader(fh('FT.vcf'))
-        next(reader)
-        r=next(reader)
-        target=[
-            [],
-            ['DP125','DP130'],
-            ['DP125','DP130'],
-            ['DP125','DP130'],
-            ['DP125','DP130']
-        ]
-        result=[call.data.FT for call in r.samples]
-        self.assertEqual(target,result)
+        with fh('FT.vcf') as fp:
+            reader = vcf.Reader(fp)
+            next(reader)
+            r = next(reader)
+            target = [
+                [],
+                ['DP125', 'DP130'],
+                ['DP125', 'DP130'],
+                ['DP125', 'DP130'],
+                ['DP125', 'DP130']
+            ]
+            result = [call.data.FT for call in r.samples]
+            self.assertEqual(target, result)
 
     def test_FT_one_two(self):
-        reader=list(vcf.Reader(fh('FT.vcf')))
-        r=reader[6]
-        target=[
-            ['DP125','DP130'],
-            ['DP125','DP130'],
-            ['DP125','DP130'],
-            ['DP130'],
-            ['DP125','DP130']
-        ]
-        result=[call.data.FT for call in r.samples]
-        self.assertEqual(target,result)
+        with fh('FT.vcf') as fp:
+            reader = list(vcf.Reader(fp))
+            r = reader[6]
+            target = [
+                ['DP125', 'DP130'],
+                ['DP125', 'DP130'],
+                ['DP125', 'DP130'],
+                ['DP130'],
+                ['DP125', 'DP130']
+            ]
+            result = [call.data.FT for call in r.samples]
+            self.assertEqual(target, result)
 
 
 class TestIssue254(unittest.TestCase):
     """ See https://github.com/jamescasbon/PyVCF/issues/254 """
 
     def test_remains_singleton_list(self):
-        reader = vcf.Reader(fh('issue-254.vcf'))
-        record = next(reader)
-        expected = [[0.1], [0.2], [0.3]]
-        actual = [call.data.AO for call in record.samples]
-        self.assertEqual(expected, actual)
+        with fh('issue-254.vcf') as fp:
+            reader = vcf.Reader(fp)
+            record = next(reader)
+            expected = [[0.1], [0.2], [0.3]]
+            actual = [call.data.AO for call in record.samples]
+            self.assertEqual(expected, actual)
 
 
 class TestIsFiltered(unittest.TestCase):
     """ Test is_filtered property for _Call and _Record """
 
     def test_is_filt_record(self):
-        reader = vcf.Reader(fh('FT.vcf'))
-        target = [
-            False, False, True, False, False,
-            False, True, False, False, False
-        ]
-        result = [record.is_filtered for record in reader]
-        self.assertEqual(target,result)
+        with fh('FT.vcf') as fp:
+            reader = vcf.Reader(fp)
+            target = [
+                False, False, True, False, False,
+                False, True, False, False, False
+            ]
+            result = [record.is_filtered for record in reader]
+            self.assertEqual(target, result)
 
     def test_is_filt_call_unset(self):
-        reader = vcf.Reader(fh('FT.vcf'))
-        record = next(reader)
-        target = [False]*5
-        result = [call.is_filtered for call in record]
-        self.assertEqual(target,result)
+        with fh('FT.vcf') as fp:
+            reader = vcf.Reader(fp)
+            record = next(reader)
+            target = [False]*5
+            result = [call.is_filtered for call in record]
+            self.assertEqual(target, result)
 
     def test_is_filt_call_pass_two(self):
-        reader = vcf.Reader(fh('FT.vcf'))
-        next(reader)
-        record = next(reader)
-        target = [False, True, True, True, True]
-        result = [call.is_filtered for call in record]
-        self.assertEqual(target,result)
+        with fh('FT.vcf') as fp:
+            reader = vcf.Reader(fp)
+            next(reader)
+            record = next(reader)
+            target = [False, True, True, True, True]
+            result = [call.is_filtered for call in record]
+            self.assertEqual(target, result)
 
     def test_is_filt_call_one(self):
-        reader = list(vcf.Reader(fh('FT.vcf')))
-        record = reader[6]
-        target = [True]*5
-        result = [call.is_filtered for call in record]
-        self.assertEqual(target,result)
+        with fh('FT.vcf') as fp:
+            reader = list(vcf.Reader(fp))
+            record = reader[6]
+            target = [True] * 5
+            result = [call.is_filtered for call in record]
+            self.assertEqual(target, result)
 
 
 class TestOpenMethods(unittest.TestCase):
 
     samples = 'NA00001 NA00002 NA00003'.split()
 
-    def fp(self, fname):
-        return os.path.join(os.path.dirname(__file__), fname)
-
-
     def testOpenFilehandle(self):
-        r = vcf.Reader(fh('example-4.0.vcf'))
-        self.assertEqual(self.samples, r.samples)
-        self.assertEqual('example-4.0.vcf', os.path.split(r.filename)[1])
+        with fh('example-4.0.vcf') as fp:
+            r = vcf.Reader(fp)
+            self.assertEqual(self.samples, r.samples)
+            self.assertEqual('example-4.0.vcf', os.path.split(r.filename)[1])
 
     def testOpenFilename(self):
-        r = vcf.Reader(filename=self.fp('example-4.0.vcf'))
-        self.assertEqual(self.samples, r.samples)
+        with vcf.Reader(filename=full_path('example-4.0.vcf')) as reader:
+            self.assertEqual(self.samples, reader.samples)
 
     def testOpenFilehandleGzipped(self):
-        r = vcf.Reader(fh('tb.vcf.gz', 'rb'))
-        self.assertEqual(self.samples, r.samples)
+        with fh('tb.vcf.gz', 'rb') as fp:
+            r = vcf.Reader(fp)
+            self.assertEqual(self.samples, r.samples)
 
     def testOpenFilenameGzipped(self):
-        r = vcf.Reader(filename=self.fp('tb.vcf.gz'))
-        self.assertEqual(self.samples, r.samples)
+        # TODO: There is a resource not getting closed here. That needs to be trackded down at some point.
+        #       I added the necessary methods to allow this to be used as a context manager thinking it'd fix it,
+        #       but the problem goes deeper. I guess maybe it's an issue with the gzip code itself, but I didn't
+        #       investigate to that level.
+        #       -kmp 22-Sep-2023
+        with vcf.Reader(filename=full_path('tb.vcf.gz')) as reader:
+            self.assertEqual(self.samples, reader.samples)
 
 
 class TestSampleFilter(unittest.TestCase):
-    @unittest.skipUnless(IS_PYTHON2, "test broken for Python 3")
+    @unittest.skip(reason="test broken for Python 3")
     def testCLIListSamples(self):
-        proc = subprocess.Popen('python scripts/vcf_sample_filter.py vcf/test/example-4.1.vcf', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        proc = subprocess.Popen('python scripts/vcf_sample_filter.py vcf/test/example-4.1.vcf',
+                                shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = proc.communicate()
         self.assertEqual(proc.returncode, 0)
         self.assertFalse(err)
         expected_out = ['Samples:', '0: NA00001', '1: NA00002', '2: NA00003']
         self.assertEqual(out.splitlines(), expected_out)
 
-    @unittest.skipUnless(IS_PYTHON2, "test broken for Python 3")
+    @unittest.skip("test broken for Python 3")
     def testCLIWithFilter(self):
-        proc = subprocess.Popen('python scripts/vcf_sample_filter.py vcf/test/example-4.1.vcf -f 1,2 --quiet', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        proc = subprocess.Popen('python scripts/vcf_sample_filter.py vcf/test/example-4.1.vcf -f 1, 2 --quiet',
+                                shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = proc.communicate()
+        if isinstance(out, bytes):
+            out = out.decode('utf-8')
         self.assertEqual(proc.returncode, 0)
         self.assertTrue(out)
         self.assertFalse(err)
         buf = StringIO()
         buf.write(out)
         buf.seek(0)
-        #print(buf.getvalue())
+        # print(buf.getvalue())
         reader = vcf.Reader(buf)
         self.assertEqual(reader.samples, ['NA00001'])
         rec = next(reader)
         self.assertEqual(len(rec.samples), 1)
 
-    @unittest.skipUnless(IS_NOT_PYPY, "test broken for PyPy")
+    @unittest.skipIf(IS_PYPY, reason="test broken for PyPy")
     def testSampleFilterModule(self):
-        # init filter with filename, get list of samples
-        filt = vcf.SampleFilter('vcf/test/example-4.1.vcf')
-        self.assertEqual(filt.samples, ['NA00001', 'NA00002', 'NA00003'])
-        # set filter, check which samples will be kept
-        filtered = filt.set_filters(filters="0", invert=True)
-        self.assertEqual(filtered, ['NA00001'])
-        # write filtered file to StringIO
+        # write filtered file to a StringIO buffer
         buf = StringIO()
-        filt.write(buf)
-        buf.seek(0)
-        #print(buf.getvalue())
-        # undo monkey patch by destroying instance
-        del filt
-        self.assertTrue('sample_filter' not in dir(vcf.Reader))
-        # read output
-        reader = vcf.Reader(buf)
-        self.assertEqual(reader.samples, ['NA00001'])
-        rec = next(reader)
-        self.assertEqual(len(rec.samples), 1)
+        try:
+            # init filter with filename, get list of samples
+            filt = vcf.SampleFilter('vcf/test/example-4.1.vcf')
+            self.assertEqual(filt.samples, ['NA00001', 'NA00002', 'NA00003'])
+            # set filter, check which samples will be kept
+            filtered = filt.set_filters(filters="0", invert=True)
+            self.assertEqual(filtered, ['NA00001'])
+            filt.write(buf)
+            buf.seek(0)
+            # print(buf.getvalue())
+            # undo monkey patch by destroying instance
+        finally:
+            del filt  # It's important to make sure this gets undone upon return
+            self.assertTrue('sample_filter' not in dir(vcf.Reader))
+            # read output
+            reader = vcf.Reader(buf)
+            self.assertEqual(reader.samples, ['NA00001'])
+            rec = next(reader)
+            self.assertEqual(len(rec.samples), 1)
 
 
 class TestFilter(unittest.TestCase):
-
 
     @unittest.skip("test currently broken")
     def testApplyFilter(self):
         # FIXME: broken with distribute
         s, out = subprocess.getstatusoutput('python scripts/vcf_filter.py --site-quality 30 test/example-4.0.vcf sq')
-        #print(out)
+        # print(out)
         self.assertEqual(s, 0)
         buf = StringIO()
         buf.write(out)
@@ -1504,7 +1577,6 @@ class TestFilter(unittest.TestCase):
 
         print(buf.getvalue())
         reader = vcf.Reader(buf)
-
 
         # check filter got into output file
         assert 'sq30' in reader.filters
@@ -1521,14 +1593,13 @@ class TestFilter(unittest.TestCase):
                 assert 'sq30' not in r.FILTER
         self.assertEqual(n, 2)
 
-
     @unittest.skip("test currently broken")
     def testApplyMultipleFilters(self):
         # FIXME: broken with distribute
-        s, out = subprocess.getstatusoutput('python scripts/vcf_filter.py --site-quality 30 '
-        '--genotype-quality 50 test/example-4.0.vcf sq mgq')
+        s, out = subprocess.getstatusoutput('python scripts/vcf_filter.py --site-quality 30'
+                                            ' --genotype-quality 50 test/example-4.0.vcf sq mgq')
         self.assertEqual(s, 0)
-        #print(out)
+        # print(out)
         buf = StringIO()
         buf.write(out)
         buf.seek(0)
@@ -1543,72 +1614,86 @@ class TestFilter(unittest.TestCase):
 class TestRegression(unittest.TestCase):
 
     def test_issue_16(self):
-        reader = vcf.Reader(fh('issue-16.vcf'))
-        n = next(reader)
-        assert n.QUAL == None
+        with fh('issue-16.vcf') as fp:
+            reader = vcf.Reader(fp)
+            n = next(reader)
+            assert n.QUAL is None
 
     def test_null_mono(self):
         # null qualities were written as blank, causing subsequent parse to fail
-        print(os.path.abspath(os.path.join(os.path.dirname(__file__),  'null_genotype_mono.vcf') ))
-        p = vcf.Reader(fh('null_genotype_mono.vcf'))
-        assert p.samples
-        out = StringIO()
-        writer = vcf.Writer(out, p)
-        for record in p:
-            writer.write_record(record)
-        out.seek(0)
-        print(out.getvalue())
-        p2 = vcf.Reader(out)
-        rec = next(p2)
-        assert rec.samples
+        print(os.path.abspath(os.path.join(os.path.dirname(__file__),  'null_genotype_mono.vcf')))
+        with fh('null_genotype_mono.vcf') as fp:
+            p = vcf.Reader(fp)
+            assert p.samples
+            out = StringIO()
+            writer = vcf.Writer(out, p)
+            for record in p:
+                writer.write_record(record)
+            out.seek(0)
+            print(out.getvalue())
+            p2 = vcf.Reader(out)
+            rec = next(p2)
+            assert rec.samples
 
 
 class TestUtils(unittest.TestCase):
 
     def test_walk(self):
         # easy case: all same sites
-        reader1 = vcf.Reader(fh('example-4.0.vcf'))
-        reader2 = vcf.Reader(fh('example-4.0.vcf'))
-        reader3 = vcf.Reader(fh('example-4.0.vcf'))
+        with fh('example-4.0.vcf') as fp1:
+            with fh('example-4.0.vcf') as fp2:
+                with fh('example-4.0.vcf') as fp3:
+                    reader1 = vcf.Reader(fp1)
+                    reader2 = vcf.Reader(fp2)
+                    reader3 = vcf.Reader(fp3)
 
-        n = 0
-        for x in utils.walk_together(reader1, reader2, reader3):
-            self.assertEqual(len(x), 3)
-            self.assertEqual(x[0], x[1])
-            self.assertEqual(x[1], x[2])
-            n+= 1
-        self.assertEqual(n, 6)
+                    n = 0
+                    for x in utils.walk_together(reader1, reader2, reader3):
+                        self.assertEqual(len(x), 3)
+                        self.assertEqual(x[0], x[1])
+                        self.assertEqual(x[1], x[2])
+                        n += 1
+                    self.assertEqual(n, 6)
 
         # artificial case 2 from the left, 2 from the right, 3 together, 1 from the right, 1 from the left
-        expected = 'llrrtttrl'
-        reader1 = vcf.Reader(fh('walk_left.vcf'))
-        reader2 = vcf.Reader(fh('example-4.0.vcf'))
+        with fh('walk_left.vcf') as fp1:
+            with fh('example-4.0.vcf') as fp2:
+                expected = 'llrrtttrl'
+                reader1 = vcf.Reader(fp1)
+                reader2 = vcf.Reader(fp2)
 
-        for ex, recs in zip(expected, utils.walk_together(reader1, reader2)):
-            if ex == 'l':
-                assert recs[0] is not None
-                assert recs[1] is None
-            if ex == 'r':
-                assert recs[1] is not None
-                assert recs[0] is None
-            if ex == 't':
-                assert recs[0] is not None
-                assert recs[1] is not None
+                for ex, recs in zip(expected, utils.walk_together(reader1, reader2)):
+                    if ex == 'l':
+                        assert recs[0] is not None
+                        assert recs[1] is None
+                    if ex == 'r':
+                        assert recs[1] is not None
+                        assert recs[0] is None
+                    if ex == 't':
+                        assert recs[0] is not None
+                        assert recs[1] is not None
 
         # test files with many chromosomes, set 'vcf_record_sort_key' to define chromosome order
         chr_order = [str(x) for x in range(1, 30)] + ['X', 'Y', 'M']
-        get_key = lambda r: (chr_order.index(r.CHROM.replace('chr','')), r.POS)
-        reader1 = vcf.Reader(fh('issue-140-file1.vcf'))
-        reader2 = vcf.Reader(fh('issue-140-file2.vcf'))
-        reader3 = vcf.Reader(fh('issue-140-file3.vcf'))
-        expected = "66642577752767662466" # each char is an integer bit flag - like file permissions
-        for ex, recs in zip(expected, utils.walk_together(reader1, reader2, reader3, vcf_record_sort_key = get_key)):
-            ex = int(ex)
-            for i, flag in enumerate([0x4, 0x2, 0x1]):
-                if ex & flag:
-                     self.assertNotEqual(recs[i], None)
-                else:
-                     self.assertEqual(recs[i], None)
+
+        def get_key(r):
+            return (chr_order.index(r.CHROM.replace('chr', '')),
+                    r.POS)
+
+        with fh('issue-140-file1.vcf') as fp1:
+            with fh('issue-140-file2.vcf') as fp2:
+                with fh('issue-140-file3.vcf') as fp3:
+                    reader1 = vcf.Reader(fp1)
+                    reader2 = vcf.Reader(fp2)
+                    reader3 = vcf.Reader(fp3)
+                    expected = "66642577752767662466"  # each char is an integer bit flag - like file permissions
+                    for ex, recs in zip(expected, utils.walk_together(reader1, reader2, reader3, vcf_record_sort_key=get_key)):
+                        ex = int(ex)
+                        for i, flag in enumerate([0x4, 0x2, 0x1]):
+                            if ex & flag:
+                                self.assertNotEqual(recs[i], None)
+                            else:
+                                self.assertEqual(recs[i], None)
 
     def test_trim(self):
         tests = [('TAA GAA', 'T G'),
@@ -1622,16 +1707,18 @@ class TestUtils(unittest.TestCase):
                              expected.split())
 
 
-
 class TestGATKMeta(unittest.TestCase):
 
     def test_meta(self):
         # expect no exceptions raised
-        reader = vcf.Reader(fh('gatk_26_meta.vcf'))
-        assert 'GATKCommandLine' in reader.metadata
-        self.assertEqual(reader.metadata['GATKCommandLine'][0]['CommandLineOptions'], '"analysis_type=LeftAlignAndTrimVariants"')
-        self.assertEqual(reader.metadata['GATKCommandLine'][1]['CommandLineOptions'], '"analysis_type=VariantAnnotator annotation=[HomopolymerRun, VariantType, TandemRepeatAnnotator]"')
-
+        with fh('gatk_26_meta.vcf') as fp:
+            reader = vcf.Reader(fp)
+            assert 'GATKCommandLine' in reader.metadata
+            self.assertEqual(reader.metadata['GATKCommandLine'][0]['CommandLineOptions'],
+                             '"analysis_type=LeftAlignAndTrimVariants"')
+            self.assertEqual(reader.metadata['GATKCommandLine'][1]['CommandLineOptions'],
+                             ('"analysis_type=VariantAnnotator'
+                              ' annotation=[HomopolymerRun, VariantType, TandemRepeatAnnotator]"'))
 
 
 class TestUncalledGenotypes(unittest.TestCase):
@@ -1648,70 +1735,74 @@ class TestUncalledGenotypes(unittest.TestCase):
         - gt_alleles should be a list of None's with length
           matching the ploidity"""
 
-        reader = vcf.Reader(fh('uncalled_genotypes.vcf'))
-        for var in reader:
-            gt_bases = [s.gt_bases for s in var.samples]
-            gt_nums = [s.gt_nums for s in var.samples]
-            ploidity = [s.ploidity for s in var.samples]
-            gt_alleles = [s.gt_alleles for s in var.samples]
-            gt_type = [s.gt_type for s in var.samples]
+        with fh('uncalled_genotypes.vcf') as fp:
+            reader = vcf.Reader(fp)
+            for var in reader:
+                gt_bases = [s.gt_bases for s in var.samples]
+                gt_nums = [s.gt_nums for s in var.samples]
+                ploidity = [s.ploidity for s in var.samples]
+                gt_alleles = [s.gt_alleles for s in var.samples]
+                gt_type = [s.gt_type for s in var.samples]
 
-            if var.POS == 14370:
-                self.assertEqual(['0|0', None, '1/1'], gt_nums)
-                self.assertEqual(['G|G', None, 'A/A'], gt_bases)
-                self.assertEqual([2,2,2], ploidity)
-                self.assertEqual([['0','0'], [None,None], ['1','1']], gt_alleles)
-                self.assertEqual([0, None, 2], gt_type)
-            elif var.POS == 17330:
-                self.assertEqual([None, '0|1', '0/0'], gt_nums)
-                self.assertEqual([None, 'T|A', 'T/T'], gt_bases)
-                self.assertEqual([3,2,2], ploidity)
-                self.assertEqual([[None,None,None], ['0','1'], ['0','0']], gt_alleles)
-                self.assertEqual([None, 1, 0], gt_type)
-            elif var.POS == 1234567:
-                self.assertEqual(['0/1', '0/2', None], gt_nums)
-                self.assertEqual(['GTC/G', 'GTC/GTCT', None], gt_bases)
-                self.assertEqual([2,2,1], ploidity)
-                self.assertEqual([['0','1'], ['0','2'], [None]], gt_alleles)
-                self.assertEqual([1, 1, None], gt_type)
-            elif var.POS == 1234568:
-                self.assertEqual(['./1', '0/.', None], gt_nums)
-                self.assertEqual(['./G', 'GTC/.', None], gt_bases)
-                self.assertEqual([2,2,1], ploidity)
-                self.assertEqual([[None,'1'], ['0',None], [None]], gt_alleles)
-                self.assertEqual([1, 1, None], gt_type)
-        reader._reader.close()
+                if var.POS == 14370:
+                    self.assertEqual(['0|0', None, '1/1'], gt_nums)
+                    self.assertEqual(['G|G', None, 'A/A'], gt_bases)
+                    self.assertEqual([2, 2, 2], ploidity)
+                    self.assertEqual([['0', '0'], [None, None], ['1', '1']], gt_alleles)
+                    self.assertEqual([0, None, 2], gt_type)
+                elif var.POS == 17330:
+                    self.assertEqual([None, '0|1', '0/0'], gt_nums)
+                    self.assertEqual([None, 'T|A', 'T/T'], gt_bases)
+                    self.assertEqual([3, 2, 2], ploidity)
+                    self.assertEqual([[None, None, None], ['0', '1'], ['0', '0']], gt_alleles)
+                    self.assertEqual([None, 1, 0], gt_type)
+                elif var.POS == 1234567:
+                    self.assertEqual(['0/1', '0/2', None], gt_nums)
+                    self.assertEqual(['GTC/G', 'GTC/GTCT', None], gt_bases)
+                    self.assertEqual([2, 2, 1], ploidity)
+                    self.assertEqual([['0', '1'], ['0', '2'], [None]], gt_alleles)
+                    self.assertEqual([1, 1, None], gt_type)
+                elif var.POS == 1234568:
+                    self.assertEqual(['./1', '0/.', None], gt_nums)
+                    self.assertEqual(['./G', 'GTC/.', None], gt_bases)
+                    self.assertEqual([2, 2, 1], ploidity)
+                    self.assertEqual([[None, '1'], ['0', None], [None]], gt_alleles)
+                    self.assertEqual([1, 1, None], gt_type)
 
+            # we're doing this now in the call to with. -kmp 22-Sep-2023
+            # reader._reader.close()
 
     def test_write_uncalled(self):
         """Test that uncalled genotypes are written just as
         they were read in the input file."""
 
-        reader = vcf.Reader(fh('uncalled_genotypes.vcf'))
+        with fh('uncalled_genotypes.vcf') as fp:
+            reader = vcf.Reader(fp)
 
-        # Write all reader records to a stream.
-        out = StringIO()
-        writer = vcf.Writer(out, reader, lineterminator='\n')
-        for record in reader:
-            writer.write_record(record)
-        reader._reader.close()
+            # Write all reader records to a stream.
+            out = StringIO()
+            writer = vcf.Writer(out, reader, lineterminator='\n')
+            for record in reader:
+                writer.write_record(record)
+            reader._reader.close()
 
+            # Compare the written stream to the input reader line-by-line.
+            out.seek(0)
+            out_lines = out.getvalue().split('\n')
+            in_file = fh('uncalled_genotypes.vcf')
+            in_lines = [line.rstrip('\n') for line in in_file]
+            in_file.close()
+            for (in_line, out_line) in zip(in_lines, out_lines):
+                self.assertEqual(in_line, out_line)
 
-        # Compare the written stream to the input reader line-by-line.
-        out.seek(0)
-        out_lines = out.getvalue().split('\n')
-        in_file = fh('uncalled_genotypes.vcf')
-        in_lines = [l.rstrip('\n') for l in in_file]
-        in_file.close()
-        for (in_line, out_line) in zip(in_lines, out_lines):
-            self.assertEqual(in_line,out_line)
 
 class TestStrelka(unittest.TestCase):
 
     def test_strelka(self):
-        reader = vcf.Reader(fh('strelka.vcf'))
-        n = next(reader)
-        assert n is not None
+        with fh('strelka.vcf') as fp:
+            reader = vcf.Reader(fp)
+            n = next(reader)
+            assert n is not None
 
 
 suite.addTests(unittest.TestLoader().loadTestsFromTestCase(TestVcfSpecs))
