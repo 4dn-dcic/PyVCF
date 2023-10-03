@@ -661,7 +661,7 @@ class Writer(object):
     def __init__(self, stream, template, lineterminator="\n"):
         self.writer = csv.writer(stream, delimiter="\t",
                                  lineterminator=lineterminator,
-                                 quotechar='', quoting=csv.QUOTE_NONE)
+                                 quotechar=None, quoting=csv.QUOTE_NONE)
         self.template = template
         self.stream = stream
 
