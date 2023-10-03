@@ -29,10 +29,10 @@ build-for-ga:
 	make build
 
 lint:
-	flake8 vcf && flake8 scripts
+	poetry run flake8 vcf && poetry run flake8 scripts
 
 test:
-	pytest -vv -W '' vcf/
+	poetry run pytest -vv -W '' vcf/
 
 test-for-ga:
 	make test
