@@ -16,6 +16,26 @@ Change Log
 * PEP8
 
 
+Missing versions
+================
+
+* There may or may not be missing versions here.
+  It might also just be bad bookkeeping.
+
+
+1.0.0.1b0
+=========
+
+* Version of Feb 21, 2023. This change originally had no changelog.
+
+
+1.0.0
+=====
+
+* Version of May, 2020.
+
+  Details not documented but this is the first post-fork release.
+
 Older Versions
 ==============
 
