@@ -22,7 +22,8 @@ build:
 	make configure && make build-after-configure
 
 build-after-configure:
-	pip install -r requirements/common-requirements.txt -r requirements/pypy-requirements.txt -r requirements/dev-requirements.txt
+	poetry install
+	@# pip install -r requirements/common-requirements.txt -r requirements/pypy-requirements.txt -r requirements/dev-requirements.txt
 
 build-for-ga:
 	make build
