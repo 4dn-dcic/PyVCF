@@ -1,11 +1,10 @@
-#!/usr/bin/env python
 """
 A VCFv4.0 and 4.1 parser for Python.
 
 Online version of PyVCF documentation is available at http://pyvcf.rtfd.org/
 """
 
-import pkg_resources
+import importlib.metadata
 import os
 
 from vcf.parser import Reader, Writer
@@ -16,5 +15,4 @@ from vcf.sample_filter import SampleFilter
 
 _MYDIR = os.path.dirname(__file__)
 
-VERSION = pkg_resources.get_distribution('dcicpyvcf').version
-print(f"Version={VERSION}")
+VERSION = importlib.metadata.version('dcicpyvcf')
