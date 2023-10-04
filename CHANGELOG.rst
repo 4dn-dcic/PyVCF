@@ -35,7 +35,7 @@ on October 4, 2023. Essentially unchanged since ``1.0.0.1b0`` except:
   explicitly, dropping mention of earlier versions. In fact, it may work
   with later versions. There's not yet a GitHub Action (GA) test
   to confirm compliance anyway, so support here is fuzzy. We just believe
-  the change to remove need for `2to3` support will help with more modern
+  the change to remove need for ``2to3`` support will help with more modern
   versions generally.
 
 * Beefed up the ``.gitignore``

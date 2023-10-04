@@ -178,4 +178,4 @@ template ``Reader`` which provides the metadata::
 
 An extensible script is available to filter vcf files in vcf_filter.py.  VCF filters
 declared by other packages will be available for use in this script.  Please
-see :doc:`FILTERS` for full description.
+see :doc:`docs/FILTERS.rst` for full description.
