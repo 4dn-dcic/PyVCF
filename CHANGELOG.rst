@@ -31,6 +31,10 @@ on October 4, 2023. Essentially unchanged since ``1.0.0.1b0`` except:
 
 * Added a ``CHANGELOG.rst`` file, which you are reading now.
 
+* Updated LICENSE to a form compatible with prior licenses that adds our own
+  copyright claims and clarifies the nature of the license as a standard
+  3-Clause BSD License.
+
 
 1.0.0.1b0
 =========
