@@ -5,14 +5,11 @@ Online version of PyVCF documentation is available at http://pyvcf.rtfd.org/
 """
 
 import importlib.metadata
-import os
 
 from vcf.parser import Reader, Writer
 from vcf.parser import VCFReader, VCFWriter
 from vcf.filters import Base as Filter
 from vcf.parser import RESERVED_INFO, RESERVED_FORMAT
 from vcf.sample_filter import SampleFilter
-
-_MYDIR = os.path.dirname(__file__)
 
 VERSION = importlib.metadata.version('dcicpyvcf')
