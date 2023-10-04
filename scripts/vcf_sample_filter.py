@@ -34,6 +34,6 @@ if __name__ == "__main__":
     sf = SampleFilter(infile=args.file, outfile=args.o,
                       filters=args.f, invert=args.invert)
     if args.f is None:
-        print "Samples:"
+        print("Samples:")
         for idx, val in enumerate(sf.samples):
-            print "{0}: {1}".format(idx, val)
+            print(("{0}: {1}".format(idx, val)))
