@@ -35,6 +35,13 @@ class SampleFilter(object):
                 return fn(self, samples, *args)
             return filt
 
+        # TODO: This does a monkey patch on the reader itself. Perhaps it should just do it on the instance?
+        #       I wasn't sure about how to test that, but I think it would be better to do these three changes
+        #       involving assignment to Reader.something as just assignments to self.parser.something once that
+        #       instance is created in code below. Then there would be no change to the class and this would
+        #       be (more) threadsafe. (I guess I'm not sure if there are other threading gotchas, but this
+        #       looks like a bad one and makes me very nervous. -kmp 22-Sep-2023
+
         # Add property to Reader for filter list
         Reader.sample_filter = property(get_filter, set_filter)
         Reader._samp_filter = []
@@ -55,6 +62,7 @@ class SampleFilter(object):
 
     def __del__(self):
         try:
+            self.parser.close()  # close the parser cleanly before releasing this
             self._undo_monkey_patch()
         except AttributeError:
             pass
@@ -97,18 +105,25 @@ class SampleFilter(object):
         return self.parser.samples
 
     def write(self, outfile=None):
-        if outfile is not None:
-            self.outfile = outfile
-        if self.outfile is None:
-            _out = sys.stdout
-        elif hasattr(self.outfile, 'write'):
-            _out = self.outfile
-        else:
-            _out = open(self.outfile, "wb")
-        logging.info("Writing to '{0}'\n".format(self.outfile))
-        writer = Writer(_out, self.parser)
-        for row in self.parser:
-            writer.write_record(row)
+        _out = None
+        _out_was_opened = False
+        try:
+            if outfile is not None:
+                self.outfile = outfile
+            if self.outfile is None:
+                _out = sys.stdout
+            elif hasattr(self.outfile, 'write'):
+                _out = self.outfile
+            else:
+                _out_was_opened = True
+                _out = open(self.outfile, "wb")
+            logging.info("Writing to '{0}'\n".format(self.outfile))
+            writer = Writer(_out, self.parser)
+            for row in self.parser:
+                writer.write_record(row)
+        finally:
+            if _out_was_opened and _out is not None:
+                _out.close()
 
     def _undo_monkey_patch(self):
         Reader._parse_samples = self._orig_parse_samples

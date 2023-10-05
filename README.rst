@@ -177,5 +177,8 @@ template ``Reader`` which provides the metadata::
     ...     vcf_writer.write_record(record)
 
 An extensible script is available to filter vcf files in vcf_filter.py.  VCF filters
-declared by other packages will be available for use in this script.  Please
-see :doc:`FILTERS` for full description.
+declared by other packages will be available for use in this script.
+
+For detailed documentation, see `FILTERS`_.
+
+.. _FILTERS: docs/FILTERS.rst

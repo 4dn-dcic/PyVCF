@@ -75,3 +75,6 @@ target/
 
 .python-version
 .python-cmd
+
+# Temporary directory, not for checkin
+scratch/
