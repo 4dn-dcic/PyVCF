@@ -42,10 +42,12 @@ tag-and-push:  # tags the branch and pushes it
 
 publish:
 	# scripts/publish
+	pip install dcicutils
 	poetry run publish-to-pypi
 
 publish-for-ga:
 	# scripts/publish --noconfirm
+	pip install dcicutils
 	python -m dcicutils.scripts.publish_to_pypi --noconfirm
 
 help:
