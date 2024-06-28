@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dcicpyvcf"
-version = "3.0.0.1b4"  # TODO: To become 3.1.0
+version = "3.0.0.1b5"  # TODO: To become 3.1.0
 description = "Variant Call Format (VCF) parser for Python"
 # A VCFv4.0 and 4.1 parser for Python."
 # Online version of PyVCF documentation is available at http://pyvcf.rtfd.org/
