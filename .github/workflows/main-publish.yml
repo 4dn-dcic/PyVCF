@@ -1,6 +1,6 @@
 # PyPi publish for SubmitCGAP 
 
-name: publish 
+name: PUBLISH 
 
 # Controls when the action will run. 
 on:

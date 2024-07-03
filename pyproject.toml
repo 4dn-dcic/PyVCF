@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dcicpyvcf"
-version = "3.0.0"
+version = "3.1.0"
 description = "Variant Call Format (VCF) parser for Python"
 # A VCFv4.0 and 4.1 parser for Python."
 # Online version of PyVCF documentation is available at http://pyvcf.rtfd.org/
@@ -43,6 +43,7 @@ classifiers = [
   'Programming Language :: Python :: 3.9',
   'Programming Language :: Python :: 3.10',
   'Programming Language :: Python :: 3.11',
+  'Programming Language :: Python :: 3.12',
 
   'Programming Language :: Python :: Implementation :: CPython',
   'Programming Language :: Python :: Implementation :: PyPy',
@@ -55,10 +56,10 @@ include = [
 
 [tool.poetry.dependencies]
 
-python = ">=3.8.0,<3.12"
+python = ">=3.8.0,<3.13"
 
 cython = "*"
-pysam = ">=0.21.0"
+pysam = "^0.22.1"
 setuptools = "*"
 
 [tool.poetry.dev-dependencies]
